@@ -1,0 +1,29 @@
+# ==========================================================================
+# ClawVault - Dependências Python
+# ==========================================================================
+# Python 3.11+ obrigatório
+# Instalação: pip install -r backend/requirements.txt
+# ==========================================================================
+
+# ---------- Núcleo ----------
+click>=8.1.0              # CLI amigável
+python-dotenv>=1.0.0      # Carrega variáveis do .env
+pydantic>=2.6.0           # Validação de dados
+
+# ---------- SDKs de LLMs ----------
+anthropic>=0.40.0         # Claude
+openai>=1.50.0            # OpenAI + compatíveis (Z.ai, Groq, Moonshot, etc)
+google-generativeai>=0.8.0  # Gemini
+
+# ---------- HTTP ----------
+requests>=2.31.0          # Ollama + Evolution API
+httpx>=0.26.0             # Cliente HTTP assíncrono
+
+# ---------- API Web (FastAPI) ----------
+fastapi>=0.110.0          # Framework REST
+uvicorn[standard]>=0.27.0 # Servidor ASGI
+websockets>=12.0          # Chat em tempo real
+python-multipart>=0.0.9   # Upload de arquivos
+
+# ---------- Utilitários ----------
+rich>=13.7.0              # Output colorido no terminal

@@ -1,0 +1,21 @@
+Copyright (c) 2026 Eliandro
+
+USO PESSOAL:
+Você pode usar, copiar, modificar e adaptar este código para uso pessoal.
+
+USO COMERCIAL:
+Uso comercial (incluindo revenda, oferta como serviço ou incorporação em
+produto comercial) requer autorização prévia por escrito do autor.
+
+GARANTIAS:
+Este software é fornecido "COMO ESTÁ", sem garantias de qualquer tipo.
+O autor não se responsabiliza por danos decorrentes do uso deste software.
+
+CHAVES DE API:
+Custos de APIs de terceiros (Anthropic, OpenAI, etc) são responsabilidade
+exclusiva do usuário. Verifique os termos de uso de cada provider.
+
+WHATSAPP:
+A integração com WhatsApp via Evolution API (Baileys) é uma conexão
+NÃO-OFICIAL. O Meta/WhatsApp pode suspender ou banir números a qualquer
+momento. Use por sua conta e risco, preferencialmente com número dedicado.

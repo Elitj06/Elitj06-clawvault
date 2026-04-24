@@ -1,0 +1,296 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import { Send, Loader2, Sparkles, Zap, DollarSign, Hash } from "lucide-react";
+import { api, wsUrl } from "@/lib/api";
+
+interface Message {
+  role: "user" | "assistant" | "system";
+  content: string;
+  model?: string;
+  cost?: number;
+  tokensIn?: number;
+  tokensOut?: number;
+  complexity?: string;
+  compressionSaved?: number;
+}
+
+interface Agent {
+  name: string;
+  role: string;
+  is_main: number;
+}
+
+export default function ChatPage() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [conversationId, setConversationId] = useState<number | null>(null);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState("main");
+  const [compress, setCompress] = useState(true);
+  const [totalCost, setTotalCost] = useState(0);
+  const [statusText, setStatusText] = useState<string | null>(null);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    api.listAgents().then((d) => setAgents(d.agents));
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  async function send() {
+    if (!input.trim() || sending) return;
+
+    const userMsg = input.trim();
+    setMessages((m) => [...m, { role: "user", content: userMsg }]);
+    setInput("");
+    setSending(true);
+    setStatusText("Analisando complexidade...");
+
+    try {
+      const res = await api.sendChat({
+        message: userMsg,
+        conversation_id: conversationId || undefined,
+        agent_name: selectedAgent,
+        compress,
+      });
+
+      if (!conversationId) {
+        setConversationId(res.conversation_id);
+      }
+
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          content: res.content,
+          model: res.model_id,
+          cost: res.cost_usd,
+          tokensIn: res.input_tokens,
+          tokensOut: res.output_tokens,
+          complexity: res.complexity || undefined,
+          compressionSaved: res.compression_savings,
+        },
+      ]);
+      setTotalCost((c) => c + res.cost_usd);
+    } catch (e: any) {
+      setMessages((m) => [
+        ...m,
+        { role: "system", content: `Erro: ${e.message}` },
+      ]);
+    } finally {
+      setSending(false);
+      setStatusText(null);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  }
+
+  function newConversation() {
+    setMessages([]);
+    setConversationId(null);
+    setTotalCost(0);
+  }
+
+  return (
+    <div className="h-[calc(100vh-4rem)] flex flex-col animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <div className="font-mono text-xs text-ink-500 uppercase tracking-wider mb-1">
+            Chat
+          </div>
+          <h1 className="font-display text-3xl font-bold tracking-tight text-ink-900">
+            Conversar com agente
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          {totalCost > 0 && (
+            <div className="text-sm font-mono text-ink-600">
+              Custo: ${totalCost.toFixed(6)}
+            </div>
+          )}
+          <button
+            onClick={newConversation}
+            className="btn-secondary text-xs"
+            disabled={sending}
+          >
+            Nova conversa
+          </button>
+        </div>
+      </div>
+
+      {/* Controls bar */}
+      <div className="card p-3 mb-4 flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-ink-600">Agente:</label>
+          <select
+            value={selectedAgent}
+            onChange={(e) => setSelectedAgent(e.target.value)}
+            className="text-sm px-2 py-1 border border-ink-200 rounded bg-white font-mono"
+            disabled={sending}
+          >
+            {agents.map((a) => (
+              <option key={a.name} value={a.name}>
+                {a.is_main ? "★ " : ""}
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-xs font-medium text-ink-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={compress}
+              onChange={(e) => setCompress(e.target.checked)}
+              className="accent-accent-400"
+            />
+            Compressão
+          </label>
+        </div>
+
+        {conversationId && (
+          <div className="ml-auto text-xs text-ink-500 font-mono">
+            conversa #{conversationId}
+          </div>
+        )}
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
+        {messages.length === 0 && (
+          <div className="h-full flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 rounded-full bg-accent-50 flex items-center justify-center mb-4">
+              <Sparkles className="text-accent-400" size={28} />
+            </div>
+            <h3 className="font-display text-xl font-semibold text-ink-900 mb-2">
+              Comece uma conversa
+            </h3>
+            <p className="text-ink-500 text-sm max-w-sm">
+              O sistema vai classificar sua pergunta e escolher o modelo mais
+              econômico automaticamente.
+            </p>
+          </div>
+        )}
+
+        {messages.map((msg, i) => (
+          <MessageBubble key={i} message={msg} />
+        ))}
+
+        {statusText && (
+          <div className="flex items-center gap-2 text-xs text-ink-500 animate-fade-in">
+            <Loader2 size={12} className="animate-spin" />
+            {statusText}
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <div className="card p-3 focus-within:border-accent-300 transition-colors">
+        <textarea
+          ref={textareaRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Digite sua mensagem (Enter para enviar, Shift+Enter para nova linha)"
+          className="w-full resize-none bg-transparent focus:outline-none text-sm placeholder:text-ink-400"
+          rows={2}
+          disabled={sending}
+        />
+        <div className="flex items-center justify-between mt-2">
+          <div className="text-xs text-ink-400 font-mono">
+            {input.length > 0 ? `${input.length} caracteres` : ""}
+          </div>
+          <button
+            onClick={send}
+            disabled={!input.trim() || sending}
+            className="btn-primary text-sm disabled:opacity-40"
+          >
+            {sending ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Send size={14} />
+            )}
+            Enviar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({ message }: { message: Message }) {
+  if (message.role === "user") {
+    return (
+      <div className="flex justify-end animate-slide-up">
+        <div className="max-w-2xl bg-ink-900 text-ink-50 rounded-lg rounded-br-sm px-4 py-2.5 text-sm">
+          {message.content}
+        </div>
+      </div>
+    );
+  }
+
+  if (message.role === "system") {
+    return (
+      <div className="max-w-xl mx-auto bg-signal-danger/10 border border-signal-danger/20 text-signal-danger rounded-md px-3 py-2 text-xs text-center font-mono animate-slide-up">
+        {message.content}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex justify-start animate-slide-up">
+      <div className="max-w-2xl">
+        <div className="bg-white border border-ink-100 rounded-lg rounded-bl-sm px-4 py-3 text-sm text-ink-800 whitespace-pre-wrap">
+          {message.content}
+        </div>
+        {(message.model || message.cost) && (
+          <div className="flex items-center gap-3 mt-1.5 px-1 text-[10px] font-mono text-ink-400">
+            {message.model && (
+              <span className="flex items-center gap-1">
+                <Sparkles size={10} />
+                {message.model}
+              </span>
+            )}
+            {message.complexity && (
+              <span className="flex items-center gap-1">
+                <Zap size={10} />
+                {message.complexity}
+              </span>
+            )}
+            {message.cost !== undefined && (
+              <span className="flex items-center gap-1">
+                <DollarSign size={10} />${message.cost.toFixed(6)}
+              </span>
+            )}
+            {message.tokensOut !== undefined && (
+              <span className="flex items-center gap-1">
+                <Hash size={10} />
+                {message.tokensIn}/{message.tokensOut}
+              </span>
+            )}
+            {(message.compressionSaved || 0) > 0 && (
+              <span className="text-accent-600">
+                −{message.compressionSaved} tok
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
