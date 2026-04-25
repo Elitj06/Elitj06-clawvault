@@ -11,6 +11,16 @@ Atualizado em: Abril 2026
 """
 
 from dataclasses import dataclass, field
+
+# Carrega .env ANTES de ler qualquer env var
+try:
+    from dotenv import load_dotenv
+    from pathlib import Path
+    _env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+    if _env_path.exists():
+        load_dotenv(_env_path)
+except ImportError:
+    pass
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -302,7 +312,7 @@ MODELS_CATALOG: dict[str, LLMModel] = {
         model_name="llama-3.3-70b-versatile",
         tier=ModelTier.STANDARD,
         context_window=128_000,
-        max_output=32_768,
+        max_output=4_096,
         cost_input=0.59,
         cost_output=0.79,
         supports_cache=False,
@@ -315,7 +325,7 @@ MODELS_CATALOG: dict[str, LLMModel] = {
         model_name="llama-3.1-8b-instant",
         tier=ModelTier.ECONOMY,
         context_window=128_000,
-        max_output=8_192,
+        max_output=4_096,
         cost_input=0.05,
         cost_output=0.08,
         supports_cache=False,
@@ -328,7 +338,7 @@ MODELS_CATALOG: dict[str, LLMModel] = {
         model_name="meta-llama/llama-4-scout-17b-16e-instruct",
         tier=ModelTier.STANDARD,
         context_window=128_000,
-        max_output=8_192,
+        max_output=4_096,
         cost_input=0.11,
         cost_output=0.34,
         supports_cache=False,
@@ -341,7 +351,7 @@ MODELS_CATALOG: dict[str, LLMModel] = {
         model_name="openai/gpt-oss-120b",
         tier=ModelTier.STANDARD,
         context_window=131_000,
-        max_output=32_768,
+        max_output=4_096,
         cost_input=0.15,
         cost_output=0.60,
         supports_cache=False,
@@ -354,7 +364,7 @@ MODELS_CATALOG: dict[str, LLMModel] = {
         model_name="openai/gpt-oss-20b",
         tier=ModelTier.ECONOMY,
         context_window=131_000,
-        max_output=8_192,
+        max_output=4_096,
         cost_input=0.10,
         cost_output=0.50,
         supports_cache=False,
@@ -367,7 +377,7 @@ MODELS_CATALOG: dict[str, LLMModel] = {
         model_name="qwen/qwen3-32b",
         tier=ModelTier.STANDARD,
         context_window=131_000,
-        max_output=8_192,
+        max_output=4_096,
         cost_input=0.29,
         cost_output=0.59,
         supports_cache=False,
@@ -423,7 +433,7 @@ MODELS_CATALOG: dict[str, LLMModel] = {
         model_name="kimi-k2-instant",
         tier=ModelTier.ECONOMY,
         context_window=128_000,
-        max_output=8_192,
+        max_output=4_096,
         cost_input=0.60,
         cost_output=2.50,
         supports_cache=True,
@@ -440,7 +450,7 @@ MODELS_CATALOG: dict[str, LLMModel] = {
         model_name="MiniMax-M2.7",
         tier=ModelTier.STANDARD,
         context_window=1_000_000,
-        max_output=32_768,
+        max_output=4_096,
         cost_input=0.30,
         cost_output=1.20,
         supports_cache=True,
@@ -836,6 +846,33 @@ MODELS_CATALOG: dict[str, LLMModel] = {
         supports_vision=False,
         description="Llama 3.2 8B — local, grátis, propósito geral"
     ),
+    # === Bigmodel / Z.AI ===
+    "bigmodel-glm-4.5-air": LLMModel(
+        id="bigmodel-glm-4.5-air",
+        provider="bigmodel",
+        model_name="glm-4.5-air",
+        tier=ModelTier.ECONOMY,
+        context_window=131_072,
+        max_output=4_096,
+        cost_input=0.0,
+        cost_output=0.0,
+        supports_cache=False,
+        supports_vision=False,
+        description="GLM 4.5 Air via Bigmodel",
+    ),
+    "zai-glm-5.1": LLMModel(
+        id="zai-glm-5.1",
+        provider="zai",
+        model_name="glm-5.1",
+        tier=ModelTier.STANDARD,
+        context_window=202_800,
+        max_output=4_096,
+        cost_input=0.0,
+        cost_output=0.0,
+        supports_cache=False,
+        supports_vision=False,
+        description="GLM-5.1 via Z.AI Coding Plan",
+    ),
 }
 
 
@@ -852,61 +889,51 @@ MODELS_CATALOG: dict[str, LLMModel] = {
 # - MEDIUM:   excelente custo-benefício (MiniMax, GLM-4.7, DeepSeek)
 # - COMPLEX:  modelos fortes mas sem gastar muito (Sonnet, Qwen Max, Kimi)
 # - CRITICAL: premium quando vale (Claude Opus, GPT-5)
-ROUTING_RULES: dict[TaskComplexity, list[str]] = {
+
+# ESTRATÉGIA DE FALLBACK:
+# - Cada nível distribui entre providers diferentes (nunca 2 do mesmo seguidos)
+# - Se um cai, o próximo assume automaticamente
+# - Providers ativos: zai (GLM-5.1), bigmodel (GLM-4.5-air), groq (Llama/Qwen),
+#   openrouter (gateway 300+ modelos)
+# - Ordem: grátis → barato → robusto → gateway
+
+# ESTRATÉGIA: 100% modelos gratuitos, diversificados por provider
+# Se um cai, o próximo assume. Sem custo.
+# Prioridade: bigmodel (rápido) → groq (estável) → z.ai flash (free) → openrouter (variedade)
+# NOTA: modelos free do OpenRouter têm rate limit frequente — sempre ter groq/bigmodel antes
+
+ROUTING_RULES = {
     TaskComplexity.TRIVIAL: [
-        "glm-4.7-flash",              # 🆓 Z.ai grátis
-        "glm-4.5-flash",              # 🆓 Z.ai grátis
-        "openrouter-free-auto",       # 🆓 Auto-router grátis
-        "or-mistral-small-3.1-free",  # 🆓 Bom em PT-BR
-        "or-llama-3.3-70b-free",      # 🆓 Llama 70B grátis
-        "groq-llama-3.1-8b",          # $0.05/M, ultra rápido
-        "qwen3-turbo",                # $0.05/M, 1M contexto
-        "gemini-flash-lite",          # $0.10/M
-        "gpt-4.1-nano",               # $0.10/M, 1M contexto
-        "llama-local",                # Local, grátis
+        "bigmodel-glm-4.5-air",      # free (bigmodel) — respostas rápidas
+        "glm-4.5-flash",              # free (z.ai flash)
+        "groq-llama-3.1-8b",          # quase-free (groq) — ultra rápido
     ],
     TaskComplexity.SIMPLE: [
-        "glm-4.7-flash",              # 🆓 tenta grátis primeiro
-        "or-llama-3.3-70b-free",      # 🆓 Llama 70B grátis via OR
-        "or-gemma-3-27b-free",        # 🆓 Gemma grátis
-        "openrouter-free-auto",       # 🆓 Fallback grátis automático
-        "groq-gpt-oss-20b",           # Ultra rápido, $0.10/M
-        "gemini-2.5-flash",           # $0.075/M, confiável
-        "qwen3-turbo",                # $0.05/M, 1M contexto
-        "claude-haiku-4-5",           # Haiku é sólido
-        "minimax-m2-lightning",       # $0.15/M
-        "glm-4.7",                    # Z.ai pago, barato
-        "gpt-4o-mini",
+        "bigmodel-glm-4.5-air",      # free (bigmodel)
+        "glm-4.7-flash",              # free (z.ai) — mais capaz
+        "groq-llama-3.3-70b",         # quase-free (groq)
+        "or-llama-3.3-70b-free",       # free (openrouter) — backup
     ],
     TaskComplexity.MEDIUM: [
-        "or-qwen3-coder-480b-free",   # 🆓 Melhor grátis para código
-        "or-deepseek-r1-free",        # 🆓 Raciocínio forte grátis
-        "minimax-m2.5",               # $0.28/M, 80% SWE-bench
-        "deepseek-v3",                # Ótimo em código, barato
-        "qwen3.6-plus",               # 1M contexto, excelente custo
-        "glm-4.7",                    # Z.ai, forte em código
-        "gemini-3-flash",             # Google novo, 1M contexto
-        "groq-llama-3.3-70b",         # Llama 70B ultra rápido
-        "claude-sonnet-4-6",          # Fallback premium
+        "groq-llama-3.3-70b",          # quase-free (groq) — estável
+        "bigmodel-glm-4.5-air",       # free (bigmodel)
+        "glm-4.7-flash",               # free (z.ai)
+        "groq-qwen3-32b",              # quase-free (groq) — mais capaz
+        "or-mistral-small-3.1-free",   # free (openrouter) — backup
     ],
     TaskComplexity.COMPLEX: [
-        "claude-sonnet-4-6",          # Melhor em raciocínio complexo
-        "minimax-m2.7",               # 94% da qualidade a 1/5 do preço
-        "qwen3.6-max-preview",        # Líder em 6 benchmarks de código
-        "kimi-k2.5",                  # Forte em código + agent swarm
-        "glm-5.1",                    # Z.ai flagship
-        "gpt-5-mini",                 # GPT-5 Mini balanceado
-        "or-grok-4-fast",             # Grok 4 Fast via OR ($0.20/M)
-        "gpt-4.1",                    # 1M contexto se precisar
+        "groq-qwen3-32b",              # quase-free (groq) — mais capaz
+        "groq-llama-3.3-70b",          # quase-free (groq) — estável
+        "bigmodel-glm-4.5-air",       # free (bigmodel)
+        "glm-4.7-flash",               # free (z.ai)
+        "or-gemma-3-27b-free",         # free (openrouter) — backup
     ],
     TaskComplexity.CRITICAL: [
-        "claude-opus-4-7",            # Top de linha para decisões críticas
-        "gpt-5",                      # Alternativa premium
-        "kimi-k2.6",                  # Multimodal + agentes longos
-        "gemini-3-pro",               # 2M contexto
-        "or-grok-4",                  # Grok 4 (2M contexto, dados X)
-        "qwen3.6-max-preview",        # Fallback premium open-source
-        "glm-5.1",
+        "groq-qwen3-32b",              # quase-free (groq)
+        "groq-llama-3.3-70b",          # quase-free (groq)
+        "bigmodel-glm-4.5-air",       # free (bigmodel)
+        "zai-glm-5.1",                 # coding plan (z.ai) — reserva
+        "or-grok-4-fast",              # pago (openrouter) — último recurso
     ],
 }
 
@@ -960,6 +987,7 @@ class APIKeys:
     google: Optional[str] = None
     deepseek: Optional[str] = None
     zai: Optional[str] = None
+    bigmodel: Optional[str] = None      # open.bigmodel.cn (GLM free tier)
     groq: Optional[str] = None
     moonshot: Optional[str] = None       # Kimi
     minimax: Optional[str] = None
@@ -976,6 +1004,7 @@ class APIKeys:
             google=os.getenv("GOOGLE_API_KEY"),
             deepseek=os.getenv("DEEPSEEK_API_KEY"),
             zai=os.getenv("ZAI_API_KEY"),
+            bigmodel=os.getenv("BIGMODEL_API_KEY"),
             groq=os.getenv("GROQ_API_KEY"),
             moonshot=os.getenv("MOONSHOT_API_KEY"),
             minimax=os.getenv("MINIMAX_API_KEY"),
@@ -992,6 +1021,7 @@ class APIKeys:
             "google": self.google,
             "deepseek": self.deepseek,
             "zai": self.zai,
+            "bigmodel": self.bigmodel,
             "groq": self.groq,
             "moonshot": self.moonshot,
             "minimax": self.minimax,

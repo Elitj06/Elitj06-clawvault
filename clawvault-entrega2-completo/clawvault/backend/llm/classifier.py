@@ -31,6 +31,11 @@ TRIVIAL_KEYWORDS = [
     "quantas letras", "quantos caracteres",
 ]
 
+# Saudações ultra-curvas → sempre TRIVIAL
+GREETING_PATTERNS = [
+    r"^(oi|olá|ola|hey|hello|hi|eai|e ai|fala|beleza|blz|tudo bem|td bem|bom dia|boa tarde|boa noite)[\s!.,?]*$",
+]
+
 # Palavras-chave que indicam tarefa SIMPLES
 SIMPLE_KEYWORDS = [
     "resuma", "resumir", "summarize",
@@ -51,18 +56,24 @@ COMPLEX_KEYWORDS = [
     "otimize", "optimize",
     "estratégia", "strategy",
     "compare as opções", "compare options",
+    "diferença entre", "compare",
+    "explique detalhadamente", "passo a passo",
+    "vantagens e desvantagens", "prós e contras",
 ]
 
 # Palavras-chave que indicam tarefa CRÍTICA
 CRITICAL_KEYWORDS = [
     "decisão de negócio", "business decision",
     "investimento", "investment",
+    "investir", "invest",
     "contrato", "contract",
     "código de produção", "production code",
     "auditoria", "audit",
-    "análise financeira", "financial analysis",
+    "análise financeira", "analise financeira", "financial analysis",
     "risco legal", "legal risk",
     "pitch deck", "apresentação para investidor",
+    "risco financeiro", "riscos financeiros",
+    "decisão estratégica", "decisao estrategica",
 ]
 
 
@@ -109,6 +120,12 @@ class TaskClassifier:
             TaskComplexity (TRIVIAL, SIMPLE, MEDIUM, COMPLEX, CRITICAL)
         """
         full_text = prompt + " " + (context or "")
+
+        # Regra 0: saudações ultra-curtas são sempre TRIVIAL
+        prompt_stripped = prompt.strip().lower()
+        for pattern in GREETING_PATTERNS:
+            if re.match(pattern, prompt_stripped, re.IGNORECASE):
+                return TaskComplexity.TRIVIAL
 
         # Regra 1: palavras-chave críticas sempre ganham
         if _contains_any(full_text, CRITICAL_KEYWORDS):

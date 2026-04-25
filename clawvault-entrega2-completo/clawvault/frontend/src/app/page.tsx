@@ -52,13 +52,13 @@ export default function HomePage() {
     <div className="animate-fade-in">
       {/* Header */}
       <div className="mb-8">
-        <div className="font-mono text-xs text-ink-500 uppercase tracking-wider mb-1">
+        <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-1">
           Dashboard
         </div>
-        <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900">
+        <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
           Visão geral
         </h1>
-        <p className="text-ink-500 mt-1">
+        <p className="text-ink-500 dark:text-ink-400 mt-1">
           Status do seu sistema de agentes multi-LLM
         </p>
       </div>
@@ -97,16 +97,16 @@ export default function HomePage() {
         <div className="lg:col-span-2 card p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <div className="font-mono text-xs text-ink-500 uppercase tracking-wider mb-1">
+              <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-1">
                 Últimos 30 dias
               </div>
-              <h2 className="font-display text-xl font-semibold text-ink-900">
+              <h2 className="font-display text-xl font-semibold text-ink-900 dark:text-ink-50">
                 Custo diário
               </h2>
             </div>
             <Link
               href="/usage"
-              className="text-sm text-ink-500 hover:text-ink-900 flex items-center gap-1"
+              className="text-sm text-ink-500 dark:text-ink-400 hover:text-ink-900 dark:hover:text-ink-50 flex items-center gap-1"
             >
               Ver detalhes <ArrowRight size={14} />
             </Link>
@@ -159,7 +159,7 @@ export default function HomePage() {
         {/* Quick actions */}
         <div className="space-y-4">
           <div className="card p-6">
-            <h3 className="font-display font-semibold text-ink-900 mb-3">
+            <h3 className="font-display font-semibold text-ink-900 dark:text-ink-50 mb-3">
               Início rápido
             </h3>
             <div className="space-y-2">
@@ -181,14 +181,14 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="card p-6 bg-accent-50 border-accent-200">
+          <div className="card p-6 bg-accent-50 dark:bg-accent-900/30 border-accent-200 dark:border-accent-700">
             <div className="flex items-start gap-3">
-              <TrendingDown size={16} className="text-accent-700 mt-0.5" />
+              <TrendingDown size={16} className="text-accent-700 dark:text-accent-400 mt-0.5" />
               <div>
-                <h3 className="font-display font-semibold text-accent-900 text-sm">
+                <h3 className="font-display font-semibold text-accent-900 dark:text-accent-200 text-sm">
                   Economia ativa
                 </h3>
-                <p className="text-xs text-accent-700 mt-1">
+                <p className="text-xs text-accent-700 dark:text-accent-400 mt-1">
                   Compressão automática + roteamento inteligente reduzem seu gasto
                   em até 70%.
                 </p>
@@ -200,7 +200,7 @@ export default function HomePage() {
 
       {/* Providers overview */}
       <div className="mt-6 card p-6">
-        <h2 className="font-display text-lg font-semibold text-ink-900 mb-4">
+        <h2 className="font-display text-lg font-semibold text-ink-900 dark:text-ink-50 mb-4">
           Providers configurados
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -209,16 +209,16 @@ export default function HomePage() {
               key={name}
               className={`flex items-center gap-2 px-3 py-2 rounded-md border text-sm ${
                 active
-                  ? "border-ink-200 bg-ink-50"
-                  : "border-ink-100 bg-ink-50/50 opacity-50"
+                  ? "border-ink-200 dark:border-ink-700 bg-ink-50 dark:bg-ink-900"
+                  : "border-ink-100 dark:border-ink-700 bg-ink-50/50 dark:bg-ink-900/50 opacity-50"
               }`}
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  active ? "bg-signal-success" : "bg-ink-300"
+                  active ? "bg-signal-success" : "bg-ink-300 dark:bg-ink-600"
                 }`}
               />
-              <span className="font-mono text-xs capitalize">{name}</span>
+              <span className="font-mono text-xs capitalize dark:text-ink-300">{name}</span>
             </div>
           ))}
         </div>
@@ -243,17 +243,17 @@ function StatCard({
   return (
     <div className="card p-5 card-hover">
       <div className="flex items-center justify-between mb-4">
-        <div className="font-mono text-xs text-ink-500 uppercase tracking-wider">
+        <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider">
           {label}
         </div>
-        <div className="text-ink-400">{icon}</div>
+        <div className="text-ink-400 dark:text-ink-500">{icon}</div>
       </div>
-      <div className="font-display text-3xl font-bold tracking-tight text-ink-900">
+      <div className="font-display text-3xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
         {value}
       </div>
-      <div className="text-xs text-ink-500 mt-1">{hint}</div>
+      <div className="text-xs text-ink-500 dark:text-ink-400 mt-1">{hint}</div>
       {typeof progress === "number" && (
-        <div className="mt-3 h-1 bg-ink-100 rounded-full overflow-hidden">
+        <div className="mt-3 h-1 bg-ink-100 dark:bg-ink-700 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all ${
               progress > 80
@@ -282,15 +282,15 @@ function QuickLink({
   return (
     <Link
       href={href}
-      className="flex items-center justify-between px-3 py-2 rounded-md text-sm hover:bg-ink-50 transition-colors group"
+      className="flex items-center justify-between px-3 py-2 rounded-md text-sm hover:bg-ink-50 dark:hover:bg-ink-800 transition-colors group"
     >
-      <div className="flex items-center gap-2 text-ink-700">
+      <div className="flex items-center gap-2 text-ink-700 dark:text-ink-300">
         {icon}
         <span>{label}</span>
       </div>
       <ArrowRight
         size={14}
-        className="text-ink-300 group-hover:text-ink-700 transition-colors"
+        className="text-ink-300 dark:text-ink-600 group-hover:text-ink-700 dark:group-hover:text-ink-300 transition-colors"
       />
     </Link>
   );
@@ -298,7 +298,7 @@ function QuickLink({
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="h-[220px] flex items-center justify-center text-ink-400 text-sm">
+    <div className="h-[220px] flex items-center justify-center text-ink-400 dark:text-ink-500 text-sm">
       {message}
     </div>
   );
@@ -307,13 +307,13 @@ function EmptyState({ message }: { message: string }) {
 function LoadingState() {
   return (
     <div className="animate-pulse space-y-4">
-      <div className="h-10 bg-ink-100 rounded w-64" />
+      <div className="h-10 bg-ink-100 dark:bg-ink-800 rounded w-64" />
       <div className="grid grid-cols-4 gap-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-32 bg-ink-100 rounded" />
+          <div key={i} className="h-32 bg-ink-100 dark:bg-ink-800 rounded" />
         ))}
       </div>
-      <div className="h-64 bg-ink-100 rounded" />
+      <div className="h-64 bg-ink-100 dark:bg-ink-800 rounded" />
     </div>
   );
 }
@@ -321,9 +321,9 @@ function LoadingState() {
 function ErrorState() {
   return (
     <div className="card p-8 text-center">
-      <p className="text-ink-500">
+      <p className="text-ink-500 dark:text-ink-400">
         Erro ao carregar dados. Verifique se o backend está rodando em{" "}
-        <code className="font-mono text-xs bg-ink-100 px-1.5 py-0.5 rounded">
+        <code className="font-mono text-xs bg-ink-100 dark:bg-ink-700 px-1.5 py-0.5 rounded">
           localhost:8000
         </code>
       </p>

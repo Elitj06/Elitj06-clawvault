@@ -41,14 +41,13 @@ export default function WhatsAppPage() {
 
   useEffect(() => {
     loadAll();
-    const interval = setInterval(loadAll, 10000); // refresh a cada 10s
+    const interval = setInterval(loadAll, 10000);
     return () => clearInterval(interval);
   }, []);
 
   async function fetchQr() {
     try {
       const r = await api.getQrcode();
-      // Evolution retorna { base64: 'data:image/png;base64,...' } ou { code: '...' }
       setQrCode(r.base64 || r.code || null);
     } catch (e: any) {
       alert("Erro ao buscar QR Code: " + e.message);
@@ -85,13 +84,13 @@ export default function WhatsAppPage() {
     <div className="animate-fade-in">
       <div className="mb-8 flex items-start justify-between">
         <div>
-          <div className="font-mono text-xs text-ink-500 uppercase tracking-wider mb-1">
+          <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-1">
             WhatsApp
           </div>
-          <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900">
+          <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
             Atendimento via WhatsApp
           </h1>
-          <p className="text-ink-500 mt-1">
+          <p className="text-ink-500 dark:text-ink-400 mt-1">
             Via Evolution API — auto-resposta com IA para seus contatos
           </p>
         </div>
@@ -103,7 +102,7 @@ export default function WhatsAppPage() {
       {/* Status card */}
       <div className="card p-6 mb-6">
         {loading ? (
-          <div className="text-ink-400">Carregando...</div>
+          <div className="text-ink-400 dark:text-ink-500">Carregando...</div>
         ) : status?.configured ? (
           status.online ? (
             <StatusConnected status={status} onFetchQr={fetchQr} />
@@ -118,7 +117,7 @@ export default function WhatsAppPage() {
       {qrCode && <QRCodeDisplay code={qrCode} onClose={() => setQrCode(null)} />}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-ink-100">
+      <div className="flex gap-1 mb-4 border-b border-ink-100 dark:border-ink-700">
         <TabButton
           active={activeTab === "status"}
           onClick={() => setActiveTab("status")}
@@ -178,10 +177,10 @@ function StatusConnected({
         )}
       </div>
       <div className="flex-1">
-        <h3 className="font-display font-semibold text-ink-900">
+        <h3 className="font-display font-semibold text-ink-900 dark:text-ink-50">
           {isOpen ? "Conectado" : "Aguardando QR Code"}
         </h3>
-        <p className="text-sm text-ink-500 mt-0.5">
+        <p className="text-sm text-ink-500 dark:text-ink-400 mt-0.5">
           Instância: <code className="font-mono">{status.instance}</code> · Estado:{" "}
           <code className="font-mono">{state || "desconhecido"}</code>
         </p>
@@ -202,10 +201,10 @@ function StatusOffline({ onCreate }: { onCreate: () => void }) {
         <XCircle className="text-signal-danger" size={24} />
       </div>
       <div className="flex-1">
-        <h3 className="font-display font-semibold text-ink-900">
+        <h3 className="font-display font-semibold text-ink-900 dark:text-ink-50">
           Evolution API não responde
         </h3>
-        <p className="text-sm text-ink-500 mt-0.5">
+        <p className="text-sm text-ink-500 dark:text-ink-400 mt-0.5">
           Verifique se o servidor está rodando no endereço configurado.
         </p>
         <button onClick={onCreate} className="btn-secondary mt-3 text-xs">
@@ -219,14 +218,14 @@ function StatusOffline({ onCreate }: { onCreate: () => void }) {
 function StatusNotConfigured() {
   return (
     <div className="flex items-start gap-4">
-      <div className="w-12 h-12 rounded-lg bg-ink-100 flex items-center justify-center">
-        <Settings className="text-ink-400" size={24} />
+      <div className="w-12 h-12 rounded-lg bg-ink-100 dark:bg-ink-700 flex items-center justify-center">
+        <Settings className="text-ink-400 dark:text-ink-500" size={24} />
       </div>
       <div className="flex-1">
-        <h3 className="font-display font-semibold text-ink-900">
+        <h3 className="font-display font-semibold text-ink-900 dark:text-ink-50">
           Evolution API não configurada
         </h3>
-        <p className="text-sm text-ink-500 mt-0.5">
+        <p className="text-sm text-ink-500 dark:text-ink-400 mt-0.5">
           Configure <code className="font-mono">EVOLUTION_BASE_URL</code> e{" "}
           <code className="font-mono">EVOLUTION_API_KEY</code> no seu arquivo .env
           e reinicie o servidor.
@@ -249,16 +248,16 @@ function QRCodeDisplay({
 
   return (
     <div className="fixed inset-0 bg-ink-900/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-white rounded-lg p-8 max-w-md animate-slide-up">
-        <h3 className="font-display text-xl font-semibold mb-4 text-center">
+      <div className="bg-white dark:bg-ink-800 rounded-lg p-8 max-w-md animate-slide-up">
+        <h3 className="font-display text-xl font-semibold mb-4 text-center dark:text-ink-50">
           Escaneie com seu WhatsApp
         </h3>
         <img
           src={imgSrc}
           alt="QR Code"
-          className="w-full border border-ink-100 rounded-md"
+          className="w-full border border-ink-100 dark:border-ink-700 rounded-md"
         />
-        <ol className="text-sm text-ink-600 mt-4 space-y-1">
+        <ol className="text-sm text-ink-600 dark:text-ink-300 mt-4 space-y-1">
           <li>1. Abra WhatsApp no celular</li>
           <li>2. Toque em Menu → Dispositivos Conectados</li>
           <li>3. Toque em &quot;Conectar dispositivo&quot;</li>
@@ -288,8 +287,8 @@ function TabButton({
       onClick={onClick}
       className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
         active
-          ? "text-ink-900 border-b-2 border-accent-400 -mb-px"
-          : "text-ink-500 hover:text-ink-800"
+          ? "text-ink-900 dark:text-ink-50 border-b-2 border-accent-400 -mb-px"
+          : "text-ink-500 dark:text-ink-400 hover:text-ink-800 dark:hover:text-ink-200"
       }`}
     >
       {icon} {label}
@@ -308,7 +307,7 @@ function SendMessageCard({
 }) {
   return (
     <div className="card p-6">
-      <h3 className="font-display text-lg font-semibold text-ink-900 mb-4">
+      <h3 className="font-display text-lg font-semibold text-ink-900 dark:text-ink-50 mb-4">
         Enviar mensagem manualmente
       </h3>
       <div className="space-y-3">
@@ -346,7 +345,7 @@ function SendMessageCard({
 function ContactsList({ contacts }: { contacts: WhatsAppContact[] }) {
   if (contacts.length === 0) {
     return (
-      <div className="card p-8 text-center text-ink-400">
+      <div className="card p-8 text-center text-ink-400 dark:text-ink-500">
         Nenhum contato ainda. Contatos aparecem aqui assim que mandam a primeira
         mensagem.
       </div>
@@ -356,28 +355,28 @@ function ContactsList({ contacts }: { contacts: WhatsAppContact[] }) {
   return (
     <div className="card overflow-hidden">
       <table className="w-full text-sm">
-        <thead className="bg-ink-50 border-b border-ink-100">
+        <thead className="bg-ink-50 dark:bg-ink-900 border-b border-ink-100 dark:border-ink-700">
           <tr>
-            <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-ink-500">
+            <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400">
               Nome
             </th>
-            <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-ink-500">
+            <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400">
               Telefone
             </th>
-            <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-ink-500">
+            <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400">
               Msgs
             </th>
-            <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-ink-500">
+            <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400">
               Última
             </th>
-            <th className="text-right px-4 py-2 text-xs uppercase tracking-wider text-ink-500">
+            <th className="text-right px-4 py-2 text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400">
               Ações
             </th>
           </tr>
         </thead>
         <tbody>
           {contacts.map((c) => (
-            <tr key={c.id} className="border-b border-ink-100 last:border-0">
+            <tr key={c.id} className="border-b border-ink-100 dark:border-ink-700 last:border-0">
               <td className="px-4 py-2.5">
                 <div className="font-medium">{c.name || "—"}</div>
                 {c.is_group ? (
@@ -386,7 +385,7 @@ function ContactsList({ contacts }: { contacts: WhatsAppContact[] }) {
               </td>
               <td className="px-4 py-2.5 font-mono text-xs">{c.phone}</td>
               <td className="px-4 py-2.5">{c.total_messages}</td>
-              <td className="px-4 py-2.5 text-xs text-ink-500">
+              <td className="px-4 py-2.5 text-xs text-ink-500 dark:text-ink-400">
                 {c.last_message_at
                   ? new Date(c.last_message_at).toLocaleString("pt-BR")
                   : "—"}
@@ -486,17 +485,17 @@ function ConfigToggle({
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <div className="font-medium text-ink-900 text-sm">{label}</div>
-        <div className="text-xs text-ink-500 mt-0.5">{hint}</div>
+        <div className="font-medium text-ink-900 dark:text-ink-50 text-sm">{label}</div>
+        <div className="text-xs text-ink-500 dark:text-ink-400 mt-0.5">{hint}</div>
       </div>
       <button
         onClick={() => onChange(!value)}
         className={`relative w-11 h-6 rounded-full transition-colors ${
-          value ? "bg-accent-400" : "bg-ink-200"
+          value ? "bg-accent-400" : "bg-ink-200 dark:bg-ink-600"
         }`}
       >
         <span
-          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white dark:bg-ink-200 rounded-full shadow transition-transform ${
             value ? "translate-x-5" : ""
           }`}
         />

@@ -38,13 +38,13 @@ export default function AgentsPage() {
     <div className="animate-fade-in">
       <div className="mb-8 flex items-start justify-between">
         <div>
-          <div className="font-mono text-xs text-ink-500 uppercase tracking-wider mb-1">
+          <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-1">
             Agentes
           </div>
-          <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900">
+          <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
             Agentes e sub-agentes
           </h1>
-          <p className="text-ink-500 mt-1">
+          <p className="text-ink-500 dark:text-ink-400 mt-1">
             Gerencie seu agente principal e sub-agentes especializados
           </p>
         </div>
@@ -56,29 +56,29 @@ export default function AgentsPage() {
       <div className="grid grid-cols-12 gap-6">
         {/* Lista */}
         <div className="col-span-4 space-y-2">
-          {loading && <div className="text-sm text-ink-400">Carregando...</div>}
+          {loading && <div className="text-sm text-ink-400 dark:text-ink-500">Carregando...</div>}
           {agents.map((agent) => (
             <button
               key={agent.name}
               onClick={() => setSelected(agent.name)}
               className={`w-full text-left card p-4 card-hover ${
-                selected === agent.name ? "border-accent-300 bg-accent-50/30" : ""
+                selected === agent.name ? "border-accent-300 bg-accent-50/30 dark:bg-accent-900/20" : ""
               }`}
             >
               <div className="flex items-center gap-2 mb-1">
                 {agent.is_main ? (
                   <Star size={14} className="text-accent-500 fill-accent-400" />
                 ) : (
-                  <Users size={14} className="text-ink-400" />
+                  <Users size={14} className="text-ink-400 dark:text-ink-500" />
                 )}
-                <span className="font-medium text-ink-900">{agent.name}</span>
+                <span className="font-medium text-ink-900 dark:text-ink-50">{agent.name}</span>
                 {agent.parent_agent && (
-                  <span className="font-mono text-[10px] text-ink-400">
+                  <span className="font-mono text-[10px] text-ink-400 dark:text-ink-500">
                     ← {agent.parent_agent}
                   </span>
                 )}
               </div>
-              <div className="text-xs text-ink-500 line-clamp-2">
+              <div className="text-xs text-ink-500 dark:text-ink-400 line-clamp-2">
                 {agent.role}
               </div>
             </button>
@@ -90,7 +90,7 @@ export default function AgentsPage() {
           {detail ? (
             <AgentDetail detail={detail} />
           ) : (
-            <div className="card p-8 text-center text-ink-400">
+            <div className="card p-8 text-center text-ink-400 dark:text-ink-500">
               Selecione um agente para ver detalhes
             </div>
           )}
@@ -124,15 +124,15 @@ function AgentDetail({
           {agent.is_main ? (
             <Star className="text-accent-500 fill-accent-400" size={20} />
           ) : (
-            <Users className="text-ink-400" size={20} />
+            <Users className="text-ink-400 dark:text-ink-500" size={20} />
           )}
-          <h2 className="font-display text-2xl font-semibold text-ink-900">
+          <h2 className="font-display text-2xl font-semibold text-ink-900 dark:text-ink-50">
             {agent.name}
           </h2>
         </div>
-        <p className="text-ink-600 mt-2">{agent.role}</p>
+        <p className="text-ink-600 dark:text-ink-300 mt-2">{agent.role}</p>
 
-        <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-ink-100">
+        <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-ink-100 dark:border-ink-700">
           <Field label="Pai" value={agent.parent_agent || "—"} />
           <Field
             label="Modelo preferido"
@@ -143,7 +143,7 @@ function AgentDetail({
       </div>
 
       <div className="card p-6">
-        <h3 className="font-display text-lg font-semibold text-ink-900 mb-4">
+        <h3 className="font-display text-lg font-semibold text-ink-900 dark:text-ink-50 mb-4">
           Memória progressiva
         </h3>
         <div className="grid grid-cols-3 gap-4">
@@ -173,20 +173,20 @@ function AgentDetail({
 
       {subagents.length > 0 && (
         <div className="card p-6">
-          <h3 className="font-display text-lg font-semibold text-ink-900 mb-4">
+          <h3 className="font-display text-lg font-semibold text-ink-900 dark:text-ink-50 mb-4">
             Sub-agentes ({subagents.length})
           </h3>
           <div className="space-y-2">
             {subagents.map((sa) => (
               <div
                 key={sa.name}
-                className="flex items-center justify-between px-3 py-2 rounded-md bg-ink-50 text-sm"
+                className="flex items-center justify-between px-3 py-2 rounded-md bg-ink-50 dark:bg-ink-800 text-sm"
               >
                 <div>
-                  <span className="font-medium text-ink-900">{sa.name}</span>
-                  <span className="text-ink-500 ml-2">{sa.role}</span>
+                  <span className="font-medium text-ink-900 dark:text-ink-50">{sa.name}</span>
+                  <span className="text-ink-500 dark:text-ink-400 ml-2">{sa.role}</span>
                 </div>
-                <ChevronRight size={14} className="text-ink-400" />
+                <ChevronRight size={14} className="text-ink-400 dark:text-ink-500" />
               </div>
             ))}
           </div>
@@ -199,10 +199,10 @@ function AgentDetail({
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="font-mono text-[10px] uppercase tracking-wider text-ink-500">
+      <div className="font-mono text-[10px] uppercase tracking-wider text-ink-500 dark:text-ink-400">
         {label}
       </div>
-      <div className="text-sm text-ink-800 mt-1">{value}</div>
+      <div className="text-sm text-ink-800 dark:text-ink-200 mt-1">{value}</div>
     </div>
   );
 }
@@ -219,15 +219,15 @@ function MemoryLevelCard({
   color: string;
 }) {
   return (
-    <div className="border border-ink-100 rounded-md p-4">
-      <div className="font-mono text-xs font-semibold text-ink-700 mb-1">
+    <div className="border border-ink-100 dark:border-ink-700 rounded-md p-4">
+      <div className="font-mono text-xs font-semibold text-ink-700 dark:text-ink-300 mb-1">
         {label}
       </div>
-      <div className="font-display text-3xl font-bold text-ink-900 mb-1">
+      <div className="font-display text-3xl font-bold text-ink-900 dark:text-ink-50 mb-1">
         {stats.entries}
       </div>
-      <div className="text-xs text-ink-500 mb-2">~{stats.tokens} tokens</div>
-      <div className="text-[10px] text-ink-400">{hint}</div>
+      <div className="text-xs text-ink-500 dark:text-ink-400 mb-2">~{stats.tokens} tokens</div>
+      <div className="text-[10px] text-ink-400 dark:text-ink-500">{hint}</div>
     </div>
   );
 }
@@ -264,8 +264,8 @@ function CreateAgentModal({
 
   return (
     <div className="fixed inset-0 bg-ink-900/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md animate-slide-up">
-        <h2 className="font-display text-xl font-semibold mb-4">
+      <div className="bg-white dark:bg-ink-800 rounded-lg p-6 w-full max-w-md animate-slide-up">
+        <h2 className="font-display text-xl font-semibold mb-4 dark:text-ink-50">
           Criar sub-agente
         </h2>
         <div className="space-y-3">

@@ -73,16 +73,16 @@ export default function SettingsPage() {
   return (
     <div className="animate-fade-in">
       <div className="mb-8">
-        <div className="font-mono text-xs text-ink-500 uppercase tracking-wider mb-1">
+        <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-1">
           Configurações
         </div>
-        <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900">
+        <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
           Providers e sistema
         </h1>
       </div>
 
       <div className="card p-6 mb-6">
-        <h2 className="font-display text-lg font-semibold mb-4">
+        <h2 className="font-display text-lg font-semibold mb-4 dark:text-ink-50">
           Providers de LLM
         </h2>
         <div className="space-y-3">
@@ -97,29 +97,29 @@ export default function SettingsPage() {
               return (
                 <div
                   key={name}
-                  className="flex items-center gap-4 p-3 rounded-md border border-ink-100"
+                  className="flex items-center gap-4 p-3 rounded-md border border-ink-100 dark:border-ink-700"
                 >
                   {active ? (
                     <CheckCircle2 className="text-signal-success" size={20} />
                   ) : (
-                    <Circle className="text-ink-300" size={20} />
+                    <Circle className="text-ink-300 dark:text-ink-600" size={20} />
                   )}
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-ink-900 capitalize">
+                      <span className="font-medium text-ink-900 dark:text-ink-50 capitalize">
                         {name}
                       </span>
                       {info?.free && <span className="badge-accent">grátis</span>}
                     </div>
                     {info && (
-                      <div className="text-xs text-ink-500 mt-0.5">
+                      <div className="text-xs text-ink-500 dark:text-ink-400 mt-0.5">
                         {info.note}
                       </div>
                     )}
                   </div>
                   <button
                     onClick={() => copyEnvVar(envVar)}
-                    className="text-[10px] font-mono text-ink-500 hover:text-ink-900 flex items-center gap-1"
+                    className="text-[10px] font-mono text-ink-500 dark:text-ink-400 hover:text-ink-900 dark:hover:text-ink-50 flex items-center gap-1"
                     title="Copiar nome da variável"
                   >
                     <Copy size={10} /> {envVar}
@@ -138,9 +138,9 @@ export default function SettingsPage() {
               );
             })}
         </div>
-        <p className="text-xs text-ink-500 mt-4">
+        <p className="text-xs text-ink-500 dark:text-ink-400 mt-4">
           Chaves de API são configuradas no arquivo{" "}
-          <code className="font-mono bg-ink-50 px-1.5 py-0.5 rounded">
+          <code className="font-mono bg-ink-50 dark:bg-ink-700 px-1.5 py-0.5 rounded">
             .env
           </code>{" "}
           na raiz do projeto. Reinicie o servidor após mudar.
@@ -148,10 +148,10 @@ export default function SettingsPage() {
       </div>
 
       <div className="card p-6 mb-6">
-        <h2 className="font-display text-lg font-semibold mb-4">
+        <h2 className="font-display text-lg font-semibold mb-4 dark:text-ink-50">
           Modelos disponíveis
         </h2>
-        <div className="text-sm text-ink-600 mb-4">
+        <div className="text-sm text-ink-600 dark:text-ink-300 mb-4">
           Total: <strong>{models.length}</strong> modelos catalogados ·{" "}
           <strong>{models.filter((m) => m.available).length}</strong>{" "}
           disponíveis com suas chaves atuais
@@ -162,14 +162,14 @@ export default function SettingsPage() {
               key={m.id}
               className={`p-3 border rounded text-sm ${
                 m.available
-                  ? "border-ink-200 bg-white"
-                  : "border-ink-100 bg-ink-50/50 opacity-60"
+                  ? "border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-800"
+                  : "border-ink-100 dark:border-ink-700 bg-ink-50/50 dark:bg-ink-800/50 opacity-60"
               }`}
             >
-              <div className="font-mono text-xs font-medium text-ink-900">
+              <div className="font-mono text-xs font-medium text-ink-900 dark:text-ink-50">
                 {m.id}
               </div>
-              <div className="text-[11px] text-ink-500 mt-0.5 flex items-center gap-2">
+              <div className="text-[11px] text-ink-500 dark:text-ink-400 mt-0.5 flex items-center gap-2">
                 <span>{m.provider}</span>
                 <span>·</span>
                 <span>
@@ -184,15 +184,15 @@ export default function SettingsPage() {
       </div>
 
       <div className="card p-6">
-        <h2 className="font-display text-lg font-semibold mb-4">Sistema</h2>
+        <h2 className="font-display text-lg font-semibold mb-4 dark:text-ink-50">Sistema</h2>
         <dl className="grid grid-cols-2 gap-y-3 text-sm">
-          <dt className="text-ink-500">Versão</dt>
+          <dt className="text-ink-500 dark:text-ink-400">Versão</dt>
           <dd className="font-mono">{status?.version}</dd>
-          <dt className="text-ink-500">Conversas totais</dt>
+          <dt className="text-ink-500 dark:text-ink-400">Conversas totais</dt>
           <dd className="font-mono">{status?.stats.conversations}</dd>
-          <dt className="text-ink-500">Mensagens totais</dt>
+          <dt className="text-ink-500 dark:text-ink-400">Mensagens totais</dt>
           <dd className="font-mono">{status?.stats.messages}</dd>
-          <dt className="text-ink-500">Agentes registrados</dt>
+          <dt className="text-ink-500 dark:text-ink-400">Agentes registrados</dt>
           <dd className="font-mono">{status?.stats.agents}</dd>
         </dl>
       </div>

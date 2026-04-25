@@ -83,10 +83,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — permite que o frontend Next.js (localhost:3000) acesse a API
+# CORS — permite acesso do frontend local e externo
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -164,7 +164,7 @@ def get_status():
 
     providers = {}
     for name in ("anthropic", "openai", "google", "deepseek", "zai",
-                 "groq", "moonshot", "minimax", "alibaba", "openrouter"):
+                 "bigmodel", "groq", "moonshot", "minimax", "alibaba", "openrouter"):
         providers[name] = API_KEYS.has_provider(name)
 
     total_conv = db.fetch_one("SELECT COUNT(*) as n FROM conversations") or {"n": 0}
@@ -231,22 +231,64 @@ async def chat(req: ChatRequest):
             compression_saved = result.tokens_saved_estimate
 
     # Busca contexto
-    context_messages = memory.get_context_for_llm(conv_id, token_budget=4000)
+    context_messages = memory.get_context_for_llm(conv_id, token_budget=1000)
 
     # Busca memória do agente
     agent_mem = get_agent_memory(req.agent_name)
     agent_context = agent_mem.get_context_for_llm(
-        query=effective_input, token_budget=1500,
+        query=effective_input, token_budget=500,
     )
+
+    # 🔍 Busca notas relevantes no vault
+    vault_context = ""
+    try:
+        vault_results = vault.search(req.message, limit=3)
+        if vault_results:
+            vault_snippets = []
+            for r in vault_results:
+                title = r.get("title", r.get("path", "Nota"))
+                snippet = r.get("snippet", r.get("content", ""))[:200]
+                vault_snippets.append(f"- {title}: {snippet}")
+            vault_context = (
+                "\n\nCONHECIMENTO DO VAULT (notas relevantes encontradas):\n"
+                + "\n".join(vault_snippets)
+                + "\n\nUse esse conhecimento para responder. Se complementar, mencione que lembra da informação."
+            )
+    except Exception:
+        pass
 
     # System prompt combinando agente + memória
     agent_info = AgentRegistry.get(req.agent_name)
     system_prompt = (
         (agent_info.get("system_prompt") if agent_info else "")
-        or "Você é um assistente prestativo. Responda em português."
+        or """Você é o ClawVault, assistente pessoal do Eliandro Tjader (Tjader).
+
+REGRAS DE MEMÓRIA E APRENDIZADO:
+- Você TEM memória persistente. Use-a para lembrar de conversas anteriores.
+- Quando aprender algo novo e importante (contato, decisão, preferência, regra de negócio), 
+  chame a API de vault para salvar: POST /api/vault/notes com title, content, layer, category.
+- Antes de responder perguntas complexas, verifique se já existe conhecimento relevante no vault.
+- Acumule conhecimento ao longo do tempo. Nunca dig que não tem memória — você tem.
+
+VAULT (segundo cérebro):
+- 00_raw: dados brutos, transcrições
+- 10_wiki: conhecimento curado (pessoas, projetos, conceitos, empresas)
+- 20_output: conteúdos gerados
+- 30_agents: memória dos agentes
+- 99_index: índices e links
+
+COMPORTAMENTO:
+- Responda sempre em português brasileiro
+- Seja direto e útil
+- Registre informações importantes automaticamente
+- Use [[wiki-links]] para conectar conhecimentos relacionados
+- Quando não souber algo, diga que vai pesquisar ou peça mais contexto"""
     )
     if agent_context:
         system_prompt += f"\n\n{agent_context}"
+
+    # Adiciona contexto do vault
+    system_prompt += vault_context
 
     # Chama o LLM
     llm_req = LLMRequest(
@@ -272,6 +314,24 @@ async def chat(req: ChatRequest):
         output_tokens=response.output_tokens,
         cost_usd=response.cost_usd,
     )
+
+    # 🧠 Auto-aprendizado: detecta e salva informações importantes no vault
+    try:
+        from backend.memory.auto_learn import auto_learner
+        auto_learner.vault = vault
+        findings = auto_learner.process_exchange(
+            user_message=req.message,
+            assistant_response=response.content,
+            conversation_id=conv_id,
+        )
+        if findings:
+            saved = auto_learner.save_findings(findings)
+            if saved:
+                import logging
+                logging.info(f"[AutoLearn] Salvo {len(saved)} nota(s) no vault")
+    except Exception as e:
+        import logging
+        logging.warning(f"[AutoLearn] Erro (não fatal): {e}")
 
     return ChatResponse(
         content=response.content,
@@ -329,15 +389,17 @@ async def websocket_chat(websocket: WebSocket):
             })
 
             # Contexto
-            context_messages = memory.get_context_for_llm(conv_id, token_budget=4000)
+            context_messages = memory.get_context_for_llm(conv_id, token_budget=1000)
             agent_mem = get_agent_memory(agent_name)
             agent_context = agent_mem.get_context_for_llm(
-                query=effective_input, token_budget=1500,
+                query=effective_input, token_budget=500,
             )
             agent_info = AgentRegistry.get(agent_name) or {}
             system_prompt = (
                 agent_info.get("system_prompt")
-                or "Você é um assistente prestativo. Responda em português."
+                or """Você é o ClawVault, assistente pessoal do Eliandro Tjader (Tjader).
+Você TEM memória persistente. Quando aprender algo importante, salve no vault via POST /api/vault/notes.
+Acumule conhecimento. Nunca dig que não tem memória. Responda em português brasileiro. Seja direto e útil."""
             )
             if agent_context:
                 system_prompt += f"\n\n{agent_context}"
@@ -567,6 +629,21 @@ def vault_search(q: str, layer: Optional[str] = None, limit: int = 10):
     return {"results": vault.search(q, layer=layer, limit=limit)}
 
 
+@app.get("/api/vault/notes/{note_path:path}")
+def read_note(note_path: str):
+    """Lê o conteúdo completo de uma nota do vault."""
+    full_path = VAULT_DIR / note_path
+    if not full_path.exists() or not full_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Nota não encontrada: {note_path}")
+    # Security: ensure path doesn't escape vault
+    try:
+        full_path.resolve().relative_to(VAULT_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    content = full_path.read_text(encoding="utf-8")
+    return {"path": note_path, "content": content, "size": len(content)}
+
+
 @app.get("/api/vault/graph")
 def vault_graph():
     """Retorna o grafo de conhecimento (para D3/Recharts)."""
@@ -658,6 +735,13 @@ try:
     app.include_router(whatsapp_router, prefix="/api/whatsapp", tags=["whatsapp"])
 except ImportError:
     pass  # Módulo WhatsApp opcional
+
+# Bridge OpenClaw ↔ ClawVault
+try:
+    from backend.api.bridge import bridge_router
+    app.include_router(bridge_router)
+except ImportError:
+    pass  # Bridge opcional
 
 
 # ==========================================================================

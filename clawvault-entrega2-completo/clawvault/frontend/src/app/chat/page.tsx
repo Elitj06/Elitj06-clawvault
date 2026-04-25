@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Send, Loader2, Sparkles, Zap, DollarSign, Hash } from "lucide-react";
 import { api, wsUrl } from "@/lib/api";
+import {
+  getSelectedConversationId,
+  onConversationSelected,
+} from "@/components/Sidebar";
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -35,13 +39,66 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Load agents on mount
   useEffect(() => {
     api.listAgents().then((d) => setAgents(d.agents));
   }, []);
 
+  // Focus textarea on mount
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
+  // Refocus textarea when sending completes
+  useEffect(() => {
+    if (!sending) {
+      // Small delay to ensure DOM is ready
+      const timer = setTimeout(() => textareaRef.current?.focus(), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [sending]);
+
+  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Listen for conversation selection from sidebar
+  const loadConversation = useCallback(async (id: number) => {
+    try {
+      const data = await api.getMessages(id);
+      const loaded: Message[] = data.messages.map((m) => ({
+        role: m.role as Message["role"],
+        content: m.content,
+        model: m.model_used || undefined,
+        cost: m.cost_usd || undefined,
+        tokensIn: m.input_tokens || undefined,
+        tokensOut: m.output_tokens || undefined,
+      }));
+      setMessages(loaded);
+      setConversationId(id);
+      setTotalCost(
+        data.messages.reduce((sum, m) => sum + (m.cost_usd || 0), 0)
+      );
+    } catch (e) {
+      console.error("Failed to load conversation:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Check if a conversation was selected from sidebar
+    const preselected = getSelectedConversationId();
+    if (preselected) {
+      loadConversation(preselected);
+    }
+
+    // Listen for future selections
+    onConversationSelected((id) => {
+      if (id) {
+        loadConversation(id);
+      }
+    });
+  }, [loadConversation]);
 
   async function send() {
     if (!input.trim() || sending) return;
@@ -51,6 +108,9 @@ export default function ChatPage() {
     setInput("");
     setSending(true);
     setStatusText("Analisando complexidade...");
+
+    // Refocus immediately after send
+    setTimeout(() => textareaRef.current?.focus(), 0);
 
     try {
       const res = await api.sendChat({
@@ -86,6 +146,8 @@ export default function ChatPage() {
     } finally {
       setSending(false);
       setStatusText(null);
+      // Ensure focus returns to textarea
+      setTimeout(() => textareaRef.current?.focus(), 0);
     }
   }
 
@@ -100,6 +162,7 @@ export default function ChatPage() {
     setMessages([]);
     setConversationId(null);
     setTotalCost(0);
+    setTimeout(() => textareaRef.current?.focus(), 0);
   }
 
   return (
@@ -107,16 +170,16 @@ export default function ChatPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <div className="font-mono text-xs text-ink-500 uppercase tracking-wider mb-1">
+          <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-1">
             Chat
           </div>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-ink-900">
+          <h1 className="font-display text-3xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
             Conversar com agente
           </h1>
         </div>
         <div className="flex items-center gap-3">
           {totalCost > 0 && (
-            <div className="text-sm font-mono text-ink-600">
+            <div className="text-sm font-mono text-ink-600 dark:text-ink-400">
               Custo: ${totalCost.toFixed(6)}
             </div>
           )}
@@ -133,11 +196,11 @@ export default function ChatPage() {
       {/* Controls bar */}
       <div className="card p-3 mb-4 flex items-center gap-4">
         <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-ink-600">Agente:</label>
+          <label className="text-xs font-medium text-ink-600 dark:text-ink-400">Agente:</label>
           <select
             value={selectedAgent}
             onChange={(e) => setSelectedAgent(e.target.value)}
-            className="text-sm px-2 py-1 border border-ink-200 rounded bg-white font-mono"
+            className="text-sm px-2 py-1 border border-ink-200 dark:border-ink-700 rounded bg-white dark:bg-ink-800 text-ink-900 dark:text-ink-100 font-mono"
             disabled={sending}
           >
             {agents.map((a) => (
@@ -150,7 +213,7 @@ export default function ChatPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1.5 text-xs font-medium text-ink-600 cursor-pointer">
+          <label className="flex items-center gap-1.5 text-xs font-medium text-ink-600 dark:text-ink-400 cursor-pointer">
             <input
               type="checkbox"
               checked={compress}
@@ -162,7 +225,7 @@ export default function ChatPage() {
         </div>
 
         {conversationId && (
-          <div className="ml-auto text-xs text-ink-500 font-mono">
+          <div className="ml-auto text-xs text-ink-500 dark:text-ink-500 font-mono">
             conversa #{conversationId}
           </div>
         )}
@@ -172,13 +235,13 @@ export default function ChatPage() {
       <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 rounded-full bg-accent-50 flex items-center justify-center mb-4">
+            <div className="w-16 h-16 rounded-full bg-accent-50 dark:bg-accent-900/30 flex items-center justify-center mb-4">
               <Sparkles className="text-accent-400" size={28} />
             </div>
-            <h3 className="font-display text-xl font-semibold text-ink-900 mb-2">
+            <h3 className="font-display text-xl font-semibold text-ink-900 dark:text-ink-50 mb-2">
               Comece uma conversa
             </h3>
-            <p className="text-ink-500 text-sm max-w-sm">
+            <p className="text-ink-500 dark:text-ink-400 text-sm max-w-sm">
               O sistema vai classificar sua pergunta e escolher o modelo mais
               econômico automaticamente.
             </p>
@@ -190,7 +253,7 @@ export default function ChatPage() {
         ))}
 
         {statusText && (
-          <div className="flex items-center gap-2 text-xs text-ink-500 animate-fade-in">
+          <div className="flex items-center gap-2 text-xs text-ink-500 dark:text-ink-400 animate-fade-in">
             <Loader2 size={12} className="animate-spin" />
             {statusText}
           </div>
@@ -207,12 +270,12 @@ export default function ChatPage() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Digite sua mensagem (Enter para enviar, Shift+Enter para nova linha)"
-          className="w-full resize-none bg-transparent focus:outline-none text-sm placeholder:text-ink-400"
+          className="w-full resize-none bg-transparent focus:outline-none text-sm placeholder:text-ink-400 text-ink-900 dark:text-ink-100"
           rows={2}
-          disabled={sending}
+          readOnly={sending}
         />
         <div className="flex items-center justify-between mt-2">
-          <div className="text-xs text-ink-400 font-mono">
+          <div className="text-xs text-ink-400 dark:text-ink-500 font-mono">
             {input.length > 0 ? `${input.length} caracteres` : ""}
           </div>
           <button
@@ -237,7 +300,7 @@ function MessageBubble({ message }: { message: Message }) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end animate-slide-up">
-        <div className="max-w-2xl bg-ink-900 text-ink-50 rounded-lg rounded-br-sm px-4 py-2.5 text-sm">
+        <div className="max-w-2xl bg-ink-900 dark:bg-accent-400 text-ink-50 dark:text-ink-900 rounded-lg rounded-br-sm px-4 py-2.5 text-sm">
           {message.content}
         </div>
       </div>
@@ -255,11 +318,11 @@ function MessageBubble({ message }: { message: Message }) {
   return (
     <div className="flex justify-start animate-slide-up">
       <div className="max-w-2xl">
-        <div className="bg-white border border-ink-100 rounded-lg rounded-bl-sm px-4 py-3 text-sm text-ink-800 whitespace-pre-wrap">
+        <div className="bg-white dark:bg-ink-800 border border-ink-100 dark:border-ink-700 rounded-lg rounded-bl-sm px-4 py-3 text-sm text-ink-800 dark:text-ink-200 whitespace-pre-wrap">
           {message.content}
         </div>
         {(message.model || message.cost) && (
-          <div className="flex items-center gap-3 mt-1.5 px-1 text-[10px] font-mono text-ink-400">
+          <div className="flex items-center gap-3 mt-1.5 px-1 text-[10px] font-mono text-ink-400 dark:text-ink-500">
             {message.model && (
               <span className="flex items-center gap-1">
                 <Sparkles size={10} />
@@ -284,7 +347,7 @@ function MessageBubble({ message }: { message: Message }) {
               </span>
             )}
             {(message.compressionSaved || 0) > 0 && (
-              <span className="text-accent-600">
+              <span className="text-accent-600 dark:text-accent-400">
                 −{message.compressionSaved} tok
               </span>
             )}

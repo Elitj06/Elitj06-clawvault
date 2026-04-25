@@ -13,8 +13,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
-      <body className="bg-ink-50 text-ink-900 min-h-screen">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`,
+          }}
+        />
+      </head>
+      <body className="bg-ink-50 dark:bg-ink-950 text-ink-900 dark:text-ink-100 min-h-screen">
         <div className="flex min-h-screen">
           <Sidebar />
           <main className="flex-1 ml-64">

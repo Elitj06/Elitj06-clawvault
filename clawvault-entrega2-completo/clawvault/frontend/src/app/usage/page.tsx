@@ -40,17 +40,17 @@ export default function UsagePage() {
     <div className="animate-fade-in">
       <div className="flex items-start justify-between mb-8">
         <div>
-          <div className="font-mono text-xs text-ink-500 uppercase tracking-wider mb-1">
+          <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-1">
             Uso e custos
           </div>
-          <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900">
+          <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
             Análise detalhada
           </h1>
         </div>
         <select
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
-          className="text-sm px-3 py-2 border border-ink-200 rounded bg-white"
+          className="text-sm px-3 py-2 border border-ink-200 dark:border-ink-700 rounded bg-white dark:bg-ink-800 dark:text-ink-200"
         >
           <option value={7}>Últimos 7 dias</option>
           <option value={30}>Últimos 30 dias</option>
@@ -60,26 +60,26 @@ export default function UsagePage() {
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="card p-5">
-          <div className="font-mono text-xs text-ink-500 uppercase tracking-wider mb-2">
+          <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-2">
             Custo total
           </div>
-          <div className="font-display text-3xl font-bold text-ink-900">
+          <div className="font-display text-3xl font-bold text-ink-900 dark:text-ink-50">
             ${totalCost.toFixed(4)}
           </div>
         </div>
         <div className="card p-5">
-          <div className="font-mono text-xs text-ink-500 uppercase tracking-wider mb-2">
+          <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-2">
             Chamadas
           </div>
-          <div className="font-display text-3xl font-bold text-ink-900">
+          <div className="font-display text-3xl font-bold text-ink-900 dark:text-ink-50">
             {totalCalls.toLocaleString("pt-BR")}
           </div>
         </div>
         <div className="card p-5">
-          <div className="font-mono text-xs text-ink-500 uppercase tracking-wider mb-2">
+          <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-2">
             Tokens processados
           </div>
-          <div className="font-display text-3xl font-bold text-ink-900">
+          <div className="font-display text-3xl font-bold text-ink-900 dark:text-ink-50">
             {totalTokens.toLocaleString("pt-BR")}
           </div>
         </div>
@@ -87,7 +87,7 @@ export default function UsagePage() {
 
       {daily.length > 0 && (
         <div className="card p-6 mb-6">
-          <h2 className="font-display text-lg font-semibold mb-4">
+          <h2 className="font-display text-lg font-semibold mb-4 dark:text-ink-50">
             Custo diário
           </h2>
           <ResponsiveContainer width="100%" height={260}>
@@ -123,7 +123,7 @@ export default function UsagePage() {
         {byModel.length > 0 && (
           <>
             <div className="card p-6">
-              <h2 className="font-display text-lg font-semibold mb-4">
+              <h2 className="font-display text-lg font-semibold mb-4 dark:text-ink-50">
                 Custo por modelo
               </h2>
               <ResponsiveContainer width="100%" height={280}>
@@ -156,7 +156,7 @@ export default function UsagePage() {
             </div>
 
             <div className="card p-6">
-              <h2 className="font-display text-lg font-semibold mb-4">
+              <h2 className="font-display text-lg font-semibold mb-4 dark:text-ink-50">
                 Chamadas por modelo
               </h2>
               <ResponsiveContainer width="100%" height={280}>
@@ -190,24 +190,24 @@ export default function UsagePage() {
       {byModel.length > 0 && (
         <div className="card overflow-hidden mt-6">
           <table className="w-full text-sm">
-            <thead className="bg-ink-50 border-b border-ink-100">
+            <thead className="bg-ink-50 dark:bg-ink-900 border-b border-ink-100 dark:border-ink-700">
               <tr>
-                <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-ink-500">
+                <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400">
                   Modelo
                 </th>
-                <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-ink-500">
+                <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400">
                   Provider
                 </th>
-                <th className="text-right px-4 py-2 text-xs uppercase tracking-wider text-ink-500">
+                <th className="text-right px-4 py-2 text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400">
                   Calls
                 </th>
-                <th className="text-right px-4 py-2 text-xs uppercase tracking-wider text-ink-500">
+                <th className="text-right px-4 py-2 text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400">
                   In
                 </th>
-                <th className="text-right px-4 py-2 text-xs uppercase tracking-wider text-ink-500">
+                <th className="text-right px-4 py-2 text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400">
                   Out
                 </th>
-                <th className="text-right px-4 py-2 text-xs uppercase tracking-wider text-ink-500">
+                <th className="text-right px-4 py-2 text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400">
                   Custo
                 </th>
               </tr>
@@ -216,7 +216,7 @@ export default function UsagePage() {
               {byModel.map((m) => (
                 <tr
                   key={m.model_id}
-                  className="border-b border-ink-100 last:border-0"
+                  className="border-b border-ink-100 dark:border-ink-700 last:border-0"
                 >
                   <td className="px-4 py-2.5 font-mono text-xs">{m.model_id}</td>
                   <td className="px-4 py-2.5">

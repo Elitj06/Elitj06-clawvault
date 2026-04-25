@@ -17,6 +17,7 @@ retornam no mesmo formato padronizado.
 
 import time
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, Any
@@ -359,7 +360,7 @@ class ZaiAdapter:
     usa eles primeiro para tarefas triviais, economizando MUITO token.
     """
 
-    BASE_URL = "https://api.z.ai/api/paas/v4/"
+    BASE_URL = "https://api.z.ai/api/coding/paas/v4"
 
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -768,6 +769,8 @@ class LLMRouter:
             self._adapters[provider] = MiniMaxAdapter(API_KEYS.minimax)
         elif provider == "alibaba" and API_KEYS.alibaba:
             self._adapters[provider] = AlibabaAdapter(API_KEYS.alibaba)
+        elif provider == "bigmodel" and os.getenv("BIGMODEL_API_KEY"):
+            self._adapters[provider] = BigmodelAdapter(os.getenv("BIGMODEL_API_KEY"))
         elif provider == "openrouter" and API_KEYS.openrouter:
             self._adapters[provider] = OpenRouterAdapter(API_KEYS.openrouter)
         elif provider == "ollama":
@@ -903,6 +906,8 @@ class LLMRouter:
         # 5. Tenta os modelos em ordem (fallback automático)
         last_error = None
         fallback_used = False
+        import logging
+        logger = logging.getLogger("clawvault.router")
 
         for idx, model in enumerate(candidates):
             adapter = self._get_adapter(model.provider)
@@ -934,6 +939,7 @@ class LLMRouter:
             except Exception as e:
                 last_error = str(e)
                 fallback_used = True
+                logger.warning(f"[Fallback] {model.id} ({model.provider}) falhou: {str(e)[:100]}")
                 # Registra falha e tenta próximo
                 record_usage(
                     model_id=model.id,
@@ -959,3 +965,15 @@ class LLMRouter:
 
 # Instância global
 router = LLMRouter()
+
+class BigmodelAdapter(OpenAICompatibleAdapter):
+    """
+    Adaptador para Bigmodel/Zhipu AI (open.bigmodel.cn).
+    
+    Usa créditos de boas-vindas + modelos free (glm-4.5-flash, glm-4.7-flash).
+    Endpoint compatível com OpenAI SDK.
+    """
+    BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
+
+    def __init__(self, api_key: str):
+        super().__init__(api_key, self.BASE_URL, "bigmodel")

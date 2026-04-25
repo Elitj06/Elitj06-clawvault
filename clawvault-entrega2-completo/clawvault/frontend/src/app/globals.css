@@ -13,7 +13,7 @@
   --accent: #d4a574;
 }
 
-:root.dark {
+.dark {
   --bg: #0f0f0e;
   --bg-elevated: #1a1a19;
   --border: #2a2a28;
@@ -38,7 +38,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar refinada */
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -60,32 +60,36 @@ body {
   color: #1a1a19;
 }
 
-/* Componentes reutilizáveis */
+/* Componentes */
 @layer components {
   .card {
-    @apply bg-white border border-ink-100 rounded-lg;
+    @apply bg-white dark:bg-ink-800 border border-ink-100 dark:border-ink-700 rounded-lg;
   }
 
   .card-hover {
-    @apply transition-all duration-200 hover:border-ink-200 hover:shadow-sm;
+    @apply transition-all duration-200 hover:border-ink-200 dark:hover:border-ink-600 hover:shadow-sm;
   }
 
   .btn {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md
            font-medium text-sm transition-all duration-150
-           focus:outline-none focus:ring-2 focus:ring-accent-300 focus:ring-offset-2;
+           focus:outline-none focus:ring-2 focus:ring-accent-300 focus:ring-offset-2
+           dark:focus:ring-offset-ink-900;
   }
 
   .btn-primary {
-    @apply btn bg-ink-900 text-ink-50 hover:bg-ink-800 active:scale-[0.98];
+    @apply btn bg-ink-900 dark:bg-accent-400 text-ink-50 dark:text-ink-900
+           hover:bg-ink-800 dark:hover:bg-accent-300 active:scale-[0.98];
   }
 
   .btn-secondary {
-    @apply btn bg-ink-50 text-ink-900 border border-ink-200 hover:bg-ink-100;
+    @apply btn bg-ink-50 dark:bg-ink-800 text-ink-900 dark:text-ink-100
+           border border-ink-200 dark:border-ink-700
+           hover:bg-ink-100 dark:hover:bg-ink-700;
   }
 
   .btn-ghost {
-    @apply btn text-ink-700 hover:bg-ink-100;
+    @apply btn text-ink-700 dark:text-ink-300 hover:bg-ink-100 dark:hover:bg-ink-800;
   }
 
   .badge {
@@ -93,37 +97,40 @@ body {
   }
 
   .badge-accent {
-    @apply badge bg-accent-100 text-accent-700;
+    @apply badge bg-accent-100 dark:bg-accent-900/40 text-accent-700 dark:text-accent-300;
   }
 
   .badge-success {
-    @apply badge bg-green-50 text-green-800;
+    @apply badge bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-400;
   }
 
   .badge-muted {
-    @apply badge bg-ink-100 text-ink-700;
+    @apply badge bg-ink-100 dark:bg-ink-800 text-ink-700 dark:text-ink-300;
   }
 
   .input {
-    @apply w-full px-3 py-2 rounded-md border border-ink-200 bg-white
-           text-sm placeholder:text-ink-400
+    @apply w-full px-3 py-2 rounded-md border border-ink-200 dark:border-ink-700
+           bg-white dark:bg-ink-800
+           text-sm text-ink-900 dark:text-ink-100 placeholder:text-ink-400
            focus:outline-none focus:ring-2 focus:ring-accent-300 focus:border-accent-400;
   }
 
   .label {
-    @apply block text-sm font-medium text-ink-800 mb-1.5;
+    @apply block text-sm font-medium text-ink-800 dark:text-ink-200 mb-1.5;
   }
 
   .nav-link {
     @apply flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium
-           text-ink-600 transition-colors;
+           text-ink-600 dark:text-ink-400 transition-colors;
   }
 
   .nav-link:hover {
-    @apply bg-ink-100 text-ink-900;
+    @apply bg-ink-100 dark:bg-ink-800 text-ink-900 dark:text-ink-100;
   }
 
   .nav-link-active {
-    @apply nav-link bg-ink-900 text-ink-50 hover:bg-ink-800 hover:text-ink-50;
+    @apply nav-link bg-ink-900 dark:bg-accent-400 text-ink-50 dark:text-ink-900
+           hover:bg-ink-800 dark:hover:bg-accent-300
+           hover:text-ink-50 dark:hover:text-ink-900;
   }
 }
