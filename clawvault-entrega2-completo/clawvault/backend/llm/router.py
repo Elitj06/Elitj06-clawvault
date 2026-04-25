@@ -101,6 +101,48 @@ class AnthropicAdapter:
                 )
         return self._client
 
+    def _split_system_for_caching(self, system: str) -> list:
+        """
+        Divide o system prompt em até 3 breakpoints cacheáveis com TTLs apropriados.
+
+        Estratégia (do mais estável → mais dinâmico):
+          1. Base (~tudo até a primeira quebra dupla) — TTL 1h
+          2. Agente (entre primeira e segunda quebra) — TTL 1h
+          3. Memória/contexto (resto) — TTL 5min (ephemeral default)
+        """
+        if not system or len(system) < 1024:
+            return [{
+                "type": "text",
+                "text": system,
+                "cache_control": {"type": "ephemeral"},
+            }]
+
+        chunks = [c.strip() for c in system.split("\n\n", 2) if c.strip()]
+
+        if len(chunks) == 1:
+            return [{
+                "type": "text",
+                "text": chunks[0],
+                "cache_control": {"type": "ephemeral", "ttl": "1h"},
+            }]
+
+        if len(chunks) == 2:
+            return [
+                {"type": "text", "text": chunks[0],
+                 "cache_control": {"type": "ephemeral", "ttl": "1h"}},
+                {"type": "text", "text": chunks[1],
+                 "cache_control": {"type": "ephemeral", "ttl": "1h"}},
+            ]
+
+        return [
+            {"type": "text", "text": chunks[0],
+             "cache_control": {"type": "ephemeral", "ttl": "1h"}},
+            {"type": "text", "text": chunks[1],
+             "cache_control": {"type": "ephemeral", "ttl": "1h"}},
+            {"type": "text", "text": "\n\n".join(chunks[2:]),
+             "cache_control": {"type": "ephemeral"}},
+        ]
+
     def call(self, model: LLMModel, request: LLMRequest) -> LLMResponse:
         client = self._get_client()
         start = time.time()
@@ -112,17 +154,37 @@ class AnthropicAdapter:
         elif request.prompt:
             messages.append({"role": "user", "content": request.prompt})
 
-        # Cache de sistema se suportado
+        # Cache de sistema com múltiplos breakpoints (P8 — otimização)
+        # A Anthropic permite até 4 breakpoints de cache_control por requisição.
+        # Estratégia: cachear o que é estável (system base + agente) com TTL 1h,
+        # e o que muda mais (memória) com TTL 5min (ephemeral default).
         system_param = request.system
         if model.supports_cache and system_param and APP_CONFIG.enable_prompt_cache:
-            # Formato de cache da Anthropic
-            system_param = [
-                {
-                    "type": "text",
-                    "text": system_param,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ]
+            # Detecta separadores conhecidos no system prompt
+            # (vault.py monta como: BASE + "\n\n" + agent_context)
+            parts = self._split_system_for_caching(system_param)
+            system_param = parts
+
+        # Cache de mensagens longas (P8): se temos histórico extenso,
+        # marca a penúltima mensagem como cache breakpoint.
+        if (model.supports_cache and APP_CONFIG.enable_prompt_cache
+                and len(messages) >= 4):
+            history_text = "".join(
+                m.get("content", "") if isinstance(m.get("content"), str)
+                else "" for m in messages[:-1]
+            )
+            if len(history_text) >= 4096:  # ~1024 tokens
+                target_idx = len(messages) - 2
+                msg = messages[target_idx]
+                if isinstance(msg.get("content"), str):
+                    messages[target_idx] = {
+                        "role": msg["role"],
+                        "content": [{
+                            "type": "text",
+                            "text": msg["content"],
+                            "cache_control": {"type": "ephemeral"},
+                        }]
+                    }
 
         kwargs = {
             "model": model.model_name,
