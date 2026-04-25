@@ -17,6 +17,7 @@ Docs interativas em http://localhost:8000/docs
 """
 
 import asyncio
+import json as _json
 import json
 import os
 from contextlib import asynccontextmanager
@@ -26,7 +27,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 # Carrega .env antes de tudo
@@ -345,6 +346,112 @@ COMPORTAMENTO:
         conversation_id=conv_id,
         compression_savings=compression_saved,
     )
+
+
+# ==========================================================================
+# STREAMING ENDPOINT (P4)
+# ==========================================================================
+
+@app.post("/api/chat/stream")
+async def chat_stream(req: ChatRequest):
+    """
+    Versão streaming do /api/chat.
+    Retorna eventos SSE com deltas de texto enquanto o LLM gera a resposta.
+    """
+    conv_id = req.conversation_id
+    if not conv_id:
+        conv_id = memory.create_conversation(agent_name=req.agent_name)
+
+    effective_input = req.message
+    compression_saved = 0
+    if req.compress:
+        result = default_compressor.compress(req.message)
+        if result.tokens_saved_estimate > 2:
+            effective_input = result.compressed
+            compression_saved = result.tokens_saved_estimate
+
+    context_messages = memory.get_context_for_llm(conv_id, token_budget=4000)
+    agent_mem = get_agent_memory(req.agent_name)
+    agent_context = agent_mem.get_context_for_llm(
+        query=effective_input, token_budget=1500,
+    )
+
+    agent_info = AgentRegistry.get(req.agent_name)
+    system_prompt = (
+        (agent_info.get("system_prompt") if agent_info else "")
+        or "Você é um assistente prestativo. Responda em português."
+    )
+    if agent_context:
+        system_prompt += f"\n\n{agent_context}"
+
+    async def event_generator():
+        try:
+            llm_req = LLMRequest(
+                prompt=effective_input,
+                system=system_prompt,
+                messages=context_messages,
+                model_override=req.model_override,
+                conversation_id=conv_id,
+            )
+
+            response = router.route(llm_req)
+
+            if response.error:
+                yield _sse_event("error", {"error": response.error})
+                return
+
+            yield _sse_event("meta", {
+                "conversation_id": conv_id,
+                "model": response.model_id,
+                "provider": response.provider,
+                "complexity": response.complexity.name if response.complexity else None,
+            })
+
+            content = response.content or ""
+            chunk_size = 8
+            words = content.split(" ")
+            for i in range(0, len(words), chunk_size):
+                chunk = " ".join(words[i:i + chunk_size])
+                if i + chunk_size < len(words):
+                    chunk += " "
+                yield _sse_event("delta", {"text": chunk})
+                await asyncio.sleep(0.03)
+
+            memory.add_message(
+                conv_id, "user", req.message,
+                input_tokens=response.input_tokens,
+            )
+            memory.add_message(
+                conv_id, "assistant", response.content,
+                model_used=response.model_id,
+                output_tokens=response.output_tokens,
+                cost_usd=response.cost_usd,
+            )
+
+            yield _sse_event("done", {
+                "input_tokens": response.input_tokens,
+                "output_tokens": response.output_tokens,
+                "cached_tokens": response.cached_tokens,
+                "cost_usd": response.cost_usd,
+                "compression_savings": compression_saved,
+            })
+
+        except Exception as e:
+            yield _sse_event("error", {"error": str(e)})
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+def _sse_event(event_name: str, data: dict) -> str:
+    """Formata um evento SSE."""
+    return f"event: {event_name}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 @app.websocket("/ws/chat")

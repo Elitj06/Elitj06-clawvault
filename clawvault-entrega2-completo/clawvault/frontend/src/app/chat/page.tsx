@@ -1,14 +1,23 @@
 "use client";
 
+/**
+ * Chat page with SSE streaming (P4) + dark mode + conversation history + cursor fix
+ * Merged from original chat page (dark mode, sidebar integration, focus management)
+ * with P4 streaming SSE support.
+ */
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Send, Loader2, Sparkles, Zap, DollarSign, Hash } from "lucide-react";
-import { api, wsUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import {
   getSelectedConversationId,
   onConversationSelected,
 } from "@/components/Sidebar";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 interface Message {
+  id: string;
   role: "user" | "assistant" | "system";
   content: string;
   model?: string;
@@ -17,6 +26,7 @@ interface Message {
   tokensOut?: number;
   complexity?: string;
   compressionSaved?: number;
+  streaming?: boolean;
 }
 
 interface Agent {
@@ -35,9 +45,11 @@ export default function ChatPage() {
   const [compress, setCompress] = useState(true);
   const [totalCost, setTotalCost] = useState(0);
   const [statusText, setStatusText] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Load agents on mount
   useEffect(() => {
@@ -52,7 +64,6 @@ export default function ChatPage() {
   // Refocus textarea when sending completes
   useEffect(() => {
     if (!sending) {
-      // Small delay to ensure DOM is ready
       const timer = setTimeout(() => textareaRef.current?.focus(), 50);
       return () => clearTimeout(timer);
     }
@@ -67,7 +78,8 @@ export default function ChatPage() {
   const loadConversation = useCallback(async (id: number) => {
     try {
       const data = await api.getMessages(id);
-      const loaded: Message[] = data.messages.map((m) => ({
+      const loaded: Message[] = data.messages.map((m: any) => ({
+        id: `loaded-${m.id}`,
         role: m.role as Message["role"],
         content: m.content,
         model: m.model_used || undefined,
@@ -78,7 +90,7 @@ export default function ChatPage() {
       setMessages(loaded);
       setConversationId(id);
       setTotalCost(
-        data.messages.reduce((sum, m) => sum + (m.cost_usd || 0), 0)
+        data.messages.reduce((sum: number, m: any) => sum + (m.cost_usd || 0), 0)
       );
     } catch (e) {
       console.error("Failed to load conversation:", e);
@@ -86,13 +98,10 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    // Check if a conversation was selected from sidebar
     const preselected = getSelectedConversationId();
     if (preselected) {
       loadConversation(preselected);
     }
-
-    // Listen for future selections
     onConversationSelected((id) => {
       if (id) {
         loadConversation(id);
@@ -100,53 +109,171 @@ export default function ChatPage() {
     });
   }, [loadConversation]);
 
+  // -------------------------------------------------------------------------
+  // SSE parser
+  // -------------------------------------------------------------------------
+  function parseSseEvent(
+    raw: string
+  ): { event: string; data: Record<string, unknown> } | null {
+    const lines = raw.split("\n");
+    let eventName = "message";
+    let data = "";
+    for (const line of lines) {
+      if (line.startsWith("event:")) {
+        eventName = line.slice(6).trim();
+      } else if (line.startsWith("data:")) {
+        data += line.slice(5).trim();
+      }
+    }
+    if (!data) return null;
+    try {
+      return { event: eventName, data: JSON.parse(data) };
+    } catch {
+      return null;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Send with streaming SSE
+  // -------------------------------------------------------------------------
   async function send() {
-    if (!input.trim() || sending) return;
+    const text = input.trim();
+    if (!text || sending) return;
 
-    const userMsg = input.trim();
-    setMessages((m) => [...m, { role: "user", content: userMsg }]);
-    setInput("");
+    setError(null);
     setSending(true);
-    setStatusText("Analisando complexidade...");
+    setInput("");
+    setStatusText("Enviando...");
 
-    // Refocus immediately after send
+    // Add user message immediately
+    const userMsgId = `u-${Date.now()}`;
+    const assistantMsgId = `a-${Date.now()}`;
+    setMessages((m) => [
+      ...m,
+      { id: userMsgId, role: "user", content: text },
+      {
+        id: assistantMsgId,
+        role: "assistant",
+        content: "",
+        streaming: true,
+      },
+    ]);
+
     setTimeout(() => textareaRef.current?.focus(), 0);
 
+    // Abort previous request if any
+    abortControllerRef.current?.abort();
+    const ctrl = new AbortController();
+    abortControllerRef.current = ctrl;
+
     try {
-      const res = await api.sendChat({
-        message: userMsg,
-        conversation_id: conversationId || undefined,
-        agent_name: selectedAgent,
-        compress,
+      const res = await fetch(`${API_URL}/api/chat/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          conversation_id: conversationId || undefined,
+          agent_name: selectedAgent,
+          compress,
+        }),
+        signal: ctrl.signal,
       });
 
-      if (!conversationId) {
-        setConversationId(res.conversation_id);
+      if (!res.ok || !res.body) {
+        throw new Error(`HTTP ${res.status}`);
       }
 
-      setMessages((m) => [
-        ...m,
-        {
-          role: "assistant",
-          content: res.content,
-          model: res.model_id,
-          cost: res.cost_usd,
-          tokensIn: res.input_tokens,
-          tokensOut: res.output_tokens,
-          complexity: res.complexity || undefined,
-          compressionSaved: res.compression_savings,
-        },
-      ]);
-      setTotalCost((c) => c + res.cost_usd);
-    } catch (e: any) {
-      setMessages((m) => [
-        ...m,
-        { role: "system", content: `Erro: ${e.message}` },
-      ]);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+
+        for (const evt of events) {
+          if (!evt.trim()) continue;
+          const parsed = parseSseEvent(evt);
+          if (!parsed) continue;
+
+          const { event: eventName, data } = parsed;
+
+          if (eventName === "meta") {
+            if (typeof data.conversation_id === "number") {
+              setConversationId(data.conversation_id);
+            }
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? {
+                      ...m,
+                      model: data.model as string,
+                      complexity: data.complexity as string,
+                    }
+                  : m
+              )
+            );
+            setStatusText("Gerando resposta...");
+          } else if (eventName === "delta") {
+            const chunk = (data.text as string) || "";
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? { ...m, content: m.content + chunk }
+                  : m
+              )
+            );
+          } else if (eventName === "done") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? {
+                      ...m,
+                      streaming: false,
+                      cost: data.cost_usd as number,
+                      tokensIn: data.input_tokens as number,
+                      tokensOut: data.output_tokens as number,
+                      compressionSaved: data.compression_savings as number,
+                    }
+                  : m
+              )
+            );
+            if (typeof data.cost_usd === "number") {
+              setTotalCost((c) => c + (data.cost_usd as number));
+            }
+          } else if (eventName === "error") {
+            const errMsg = (data.error as string) || "erro desconhecido";
+            setError(errMsg);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? { ...m, content: `Erro: ${errMsg}`, streaming: false }
+                  : m
+              )
+            );
+          }
+        }
+      }
+    } catch (e: unknown) {
+      const aborted = e instanceof Error && e.name === "AbortError";
+      if (!aborted) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsgId
+              ? { ...m, content: `Erro: ${msg}`, streaming: false }
+              : m
+          )
+        );
+      }
     } finally {
       setSending(false);
       setStatusText(null);
-      // Ensure focus returns to textarea
       setTimeout(() => textareaRef.current?.focus(), 0);
     }
   }
@@ -162,6 +289,7 @@ export default function ChatPage() {
     setMessages([]);
     setConversationId(null);
     setTotalCost(0);
+    setError(null);
     setTimeout(() => textareaRef.current?.focus(), 0);
   }
 
@@ -243,14 +371,20 @@ export default function ChatPage() {
             </h3>
             <p className="text-ink-500 dark:text-ink-400 text-sm max-w-sm">
               O sistema vai classificar sua pergunta e escolher o modelo mais
-              econômico automaticamente.
+              econômico automaticamente. Respostas via streaming SSE.
             </p>
           </div>
         )}
 
-        {messages.map((msg, i) => (
-          <MessageBubble key={i} message={msg} />
+        {messages.map((msg) => (
+          <MessageBubble key={msg.id} message={msg} />
         ))}
+
+        {error && (
+          <div className="max-w-xl mx-auto bg-signal-danger/10 border border-signal-danger/20 text-signal-danger rounded-md px-3 py-2 text-xs text-center font-mono animate-slide-up">
+            {error}
+          </div>
+        )}
 
         {statusText && (
           <div className="flex items-center gap-2 text-xs text-ink-500 dark:text-ink-400 animate-fade-in">
@@ -315,13 +449,17 @@ function MessageBubble({ message }: { message: Message }) {
     );
   }
 
+  // Assistant message
   return (
     <div className="flex justify-start animate-slide-up">
       <div className="max-w-2xl">
         <div className="bg-white dark:bg-ink-800 border border-ink-100 dark:border-ink-700 rounded-lg rounded-bl-sm px-4 py-3 text-sm text-ink-800 dark:text-ink-200 whitespace-pre-wrap">
           {message.content}
+          {message.streaming && (
+            <span className="inline-block w-2 h-4 bg-current opacity-50 ml-1 animate-pulse align-middle rounded-sm" />
+          )}
         </div>
-        {(message.model || message.cost) && (
+        {!message.streaming && (message.model || message.cost) && (
           <div className="flex items-center gap-3 mt-1.5 px-1 text-[10px] font-mono text-ink-400 dark:text-ink-500">
             {message.model && (
               <span className="flex items-center gap-1">
