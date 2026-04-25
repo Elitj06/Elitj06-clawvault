@@ -294,26 +294,26 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col animate-fade-in">
+    <div className="h-[calc(100vh-7rem)] lg:h-[calc(100vh-4rem)] flex flex-col animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-3">
         <div>
           <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-1">
             Chat
           </div>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
             Conversar com agente
           </h1>
         </div>
         <div className="flex items-center gap-3">
           {totalCost > 0 && (
-            <div className="text-sm font-mono text-ink-600 dark:text-ink-400">
+            <div className="text-xs sm:text-sm font-mono text-ink-600 dark:text-ink-400">
               Custo: ${totalCost.toFixed(6)}
             </div>
           )}
           <button
             onClick={newConversation}
-            className="btn-secondary text-xs"
+            className="btn-secondary text-xs whitespace-nowrap"
             disabled={sending}
           >
             Nova conversa
@@ -322,7 +322,7 @@ export default function ChatPage() {
       </div>
 
       {/* Controls bar */}
-      <div className="card p-3 mb-4 flex items-center gap-4">
+      <div className="card p-3 mb-3 sm:mb-4 flex flex-wrap items-center gap-3 sm:gap-4">
         <div className="flex items-center gap-2">
           <label className="text-xs font-medium text-ink-600 dark:text-ink-400">Agente:</label>
           <select
@@ -397,13 +397,13 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="card p-3 focus-within:border-accent-300 transition-colors">
+      <div className="card p-2 sm:p-3 focus-within:border-accent-300 transition-colors">
         <textarea
           ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Digite sua mensagem (Enter para enviar, Shift+Enter para nova linha)"
+          placeholder="Digite sua mensagem..."
           className="w-full resize-none bg-transparent focus:outline-none text-sm placeholder:text-ink-400 text-ink-900 dark:text-ink-100"
           rows={2}
           readOnly={sending}
@@ -415,14 +415,14 @@ export default function ChatPage() {
           <button
             onClick={send}
             disabled={!input.trim() || sending}
-            className="btn-primary text-sm disabled:opacity-40"
+            className="btn-primary text-xs sm:text-sm disabled:opacity-40"
           >
             {sending ? (
               <Loader2 size={14} className="animate-spin" />
             ) : (
               <Send size={14} />
             )}
-            Enviar
+            <span className="hidden sm:inline">Enviar</span>
           </button>
         </div>
       </div>
@@ -434,7 +434,7 @@ function MessageBubble({ message }: { message: Message }) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end animate-slide-up">
-        <div className="max-w-2xl bg-ink-900 dark:bg-accent-400 text-ink-50 dark:text-ink-900 rounded-lg rounded-br-sm px-4 py-2.5 text-sm">
+        <div className="max-w-[85%] sm:max-w-2xl bg-ink-900 dark:bg-accent-400 text-ink-50 dark:text-ink-900 rounded-lg rounded-br-sm px-3 sm:px-4 py-2.5 text-sm">
           {message.content}
         </div>
       </div>
@@ -452,15 +452,15 @@ function MessageBubble({ message }: { message: Message }) {
   // Assistant message
   return (
     <div className="flex justify-start animate-slide-up">
-      <div className="max-w-2xl">
-        <div className="bg-white dark:bg-ink-800 border border-ink-100 dark:border-ink-700 rounded-lg rounded-bl-sm px-4 py-3 text-sm text-ink-800 dark:text-ink-200 whitespace-pre-wrap">
+      <div className="max-w-[85%] sm:max-w-2xl">
+        <div className="bg-white dark:bg-ink-800 border border-ink-100 dark:border-ink-700 rounded-lg rounded-bl-sm px-3 sm:px-4 py-3 text-sm text-ink-800 dark:text-ink-200 whitespace-pre-wrap">
           {message.content}
           {message.streaming && (
             <span className="inline-block w-2 h-4 bg-current opacity-50 ml-1 animate-pulse align-middle rounded-sm" />
           )}
         </div>
         {!message.streaming && (message.model || message.cost) && (
-          <div className="flex items-center gap-3 mt-1.5 px-1 text-[10px] font-mono text-ink-400 dark:text-ink-500">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1.5 px-1 text-[10px] font-mono text-ink-400 dark:text-ink-500">
             {message.model && (
               <span className="flex items-center gap-1">
                 <Sparkles size={10} />

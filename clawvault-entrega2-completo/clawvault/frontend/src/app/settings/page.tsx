@@ -72,16 +72,16 @@ export default function SettingsPage() {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-8">
+      <div className="mb-6 sm:mb-8">
         <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-1">
           Configurações
         </div>
-        <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
+        <h1 className="font-display text-2xl sm:text-4xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
           Providers e sistema
         </h1>
       </div>
 
-      <div className="card p-6 mb-6">
+      <div className="card p-4 sm:p-6 mb-6">
         <h2 className="font-display text-lg font-semibold mb-4 dark:text-ink-50">
           Providers de LLM
         </h2>
@@ -97,14 +97,14 @@ export default function SettingsPage() {
               return (
                 <div
                   key={name}
-                  className="flex items-center gap-4 p-3 rounded-md border border-ink-100 dark:border-ink-700"
+                  className="flex flex-wrap items-center gap-3 sm:gap-4 p-3 rounded-md border border-ink-100 dark:border-ink-700"
                 >
                   {active ? (
                     <CheckCircle2 className="text-signal-success" size={20} />
                   ) : (
                     <Circle className="text-ink-300 dark:text-ink-600" size={20} />
                   )}
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-ink-900 dark:text-ink-50 capitalize">
                         {name}
@@ -156,7 +156,7 @@ export default function SettingsPage() {
           <strong>{models.filter((m) => m.available).length}</strong>{" "}
           disponíveis com suas chaves atuais
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {models.map((m) => (
             <div
               key={m.id}

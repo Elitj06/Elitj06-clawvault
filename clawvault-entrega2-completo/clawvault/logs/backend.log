@@ -1,99 +1,11 @@
-INFO:     Started server process [1772096]
+INFO:     Started server process [1780420]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 🐾 ClawVault API rodando em http://localhost:8000
 📚 Docs em http://localhost:8000/docs
-INFO:     127.0.0.1:55310 - "GET /api/vault/notes/10_wiki/eventos/openclaw-2026-04-03.md HTTP/1.1" 200 OK
-INFO:     127.0.0.1:37120 - "GET /api/conversations?limit=10 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:37132 - "GET /api/vault/search?q=* HTTP/1.1" 200 OK
-INFO:     127.0.0.1:37128 - "GET /api/vault/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33888 - "GET /api/whatsapp/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33898 - "GET /api/whatsapp/config HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34290 - "GET /api/whatsapp/contacts HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34306 - "GET /api/vault/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34310 - "GET /api/vault/search?q=* HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51596 - "GET /api/v1/users/search HTTP/1.1" 404 Not Found
-INFO:     18.116.101.220:40646 - "GET / HTTP/1.1" 200 OK
-INFO:     18.116.101.220:54158 - "GET / HTTP/1.1" 200 OK
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-INFO:     127.0.0.1:45104 - "GET /api/conversations?limit=10 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:45114 - "GET /api/usage/daily?days=30 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:45124 - "GET /api/status HTTP/1.1" 200 OK
-WARNING:  Invalid HTTP request received.
-INFO:     172.238.170.48:47148 - "GET /.env HTTP/1.1" 404 Not Found
-INFO:     172.238.170.48:47154 - "GET /.git/config HTTP/1.1" 404 Not Found
-INFO:     135.237.125.201:35542 - "GET / HTTP/1.1" 200 OK
-WARNING:  Invalid HTTP request received.
-INFO:     64.62.197.122:35348 - "GET / HTTP/1.1" 200 OK
-INFO:     64.62.197.132:62683 - "GET /favicon.ico HTTP/1.1" 404 Not Found
-INFO:     64.62.197.127:6013 - "GET /?format=json HTTP/1.1" 200 OK
-WARNING:  Invalid HTTP request received.
-INFO:     127.0.0.1:53246 - "POST /api/server-actions HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:41660 - "GET /api/agents HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41668 - "GET /api/agents/main HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58284 - "GET /api/vault/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58300 - "GET /api/vault/search?q=* HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58316 - "GET /api/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58320 - "GET /api/usage/daily?days=30 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35466 - "GET /api/agents HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35472 - "GET /api/conversations/50/messages HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41104 - "GET /api/usage/daily?days=30 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41102 - "GET /api/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57654 - "GET /api/usage/by-model?days=30 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57664 - "GET /api/usage/daily?days=30 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57680 - "GET /api/whatsapp/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57672 - "GET /api/whatsapp/contacts HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57686 - "GET /api/whatsapp/config HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47462 - "GET /api/vault/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47464 - "GET /api/vault/search?q=* HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51218 - "GET /api/vault/search?q=a HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51226 - "GET /api/vault/search?q=ag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51234 - "GET /api/vault/search?q=age HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51238 - "GET /api/vault/search?q=agen HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51240 - "GET /api/vault/search?q=agent HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51242 - "GET /api/vault/search?q=agente HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51258 - "GET /api/vault/search?q=agentes HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51262 - "GET /api/vault/search?q=agentes%20 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35096 - "GET /api/vault/notes/10_wiki/eventos/openclaw-2026-04-20.md HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50446 - "GET /api/vault/notes/10_wiki/eventos/openclaw-2026-04-22.md HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49352 - "GET /api/vault/search?q=agentes HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49362 - "GET /api/vault/search?q=agente HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49374 - "GET /api/vault/search?q=agent HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49380 - "GET /api/vault/search?q=agen HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49390 - "GET /api/vault/search?q=age HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49392 - "GET /api/vault/search?q=ag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49402 - "GET /api/vault/search?q=a HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53670 - "GET /api/vault/search?q=a HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53672 - "GET /api/vault/search?q=ag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53680 - "GET /api/vault/search?q=age HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53688 - "GET /api/vault/search?q=agen HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53696 - "GET /api/vault/search?q=agent HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56044 - "GET /api/vault/search?q=agen HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56054 - "GET /api/vault/search?q=age HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56064 - "GET /api/vault/search?q=ag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56068 - "GET /api/vault/search?q=a HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56070 - "GET /api/vault/search?q=o HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56072 - "GET /api/vault/search?q=ou HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56078 - "GET /api/vault/search?q=out HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56090 - "GET /api/vault/search?q=outp HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56102 - "GET /api/vault/search?q=outpu HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56118 - "GET /api/vault/search?q=output HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56132 - "GET /api/vault/search?q=outputs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:39004 - "GET /api/vault/search?q=Projeto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:39018 - "GET /api/vault/search?q=Projet HTTP/1.1" 200 OK
-INFO:     127.0.0.1:39028 - "GET /api/vault/search?q=Proje HTTP/1.1" 200 OK
-INFO:     127.0.0.1:39040 - "GET /api/vault/search?q=Proj HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48022 - "GET /api/agents HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48034 - "GET /api/conversations/50/messages HTTP/1.1" 200 OK
-INFO:     127.0.0.1:43532 - "POST /api/chat HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58824 - "POST /api/chat HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56508 - "POST /api/chat HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36298 - "POST /api/chat HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42564 - "GET /api/conversations?limit=10 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42554 - "GET /api/agents HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57618 - "GET /api/conversations?limit=10 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57624 - "GET /api/agents HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60010 - "GET /api/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33028 - "GET /api/observability/overview HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1780420]

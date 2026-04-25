@@ -188,7 +188,7 @@ export default function UsagePage() {
       {!loading && !error && overview && (
         <>
           {/* CARDS DE MÉTRICAS-CHAVE */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <MetricCard
               label="custo total"
               value={fmtUsd(overview.cost_usd)}
@@ -216,7 +216,7 @@ export default function UsagePage() {
           </div>
 
           {/* TIMELINE */}
-          <div className="bg-white rounded-xl border border-ink-100 p-6 mb-6">
+          <div className="bg-white rounded-xl border border-ink-100 p-4 sm:p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-ink-900">
                 Evolução diária — custo
@@ -230,7 +230,7 @@ export default function UsagePage() {
                 Sem dados no período
               </div>
             ) : (
-              <div className="flex items-end gap-1 h-40">
+              <div className="flex items-end gap-0.5 sm:gap-1 h-32 sm:h-40 overflow-x-auto">
                 {timeline.map((t) => {
                   const h = (t.cost_usd / maxCost) * 100;
                   return (
@@ -260,8 +260,8 @@ export default function UsagePage() {
           {/* GRID 2 COLUNAS: Modelos + Agentes */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             {/* MODELOS */}
-            <div className="bg-white rounded-xl border border-ink-100 overflow-hidden">
-              <div className="px-6 py-4 border-b border-ink-100">
+            <div className="bg-white rounded-xl border border-ink-100 overflow-x-auto">
+              <div className="px-4 sm:px-6 py-4 border-b border-ink-100">
                 <h2 className="text-sm font-semibold text-ink-900">
                   Modelos por custo
                 </h2>
@@ -269,7 +269,7 @@ export default function UsagePage() {
               {models.length === 0 ? (
                 <div className="p-6 text-center text-ink-400 text-sm">sem dados</div>
               ) : (
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[400px]">
                   <thead className="bg-ink-50 text-[10px] uppercase tracking-wider text-ink-500 font-mono">
                     <tr>
                       <th className="text-left px-4 py-2">modelo</th>
@@ -304,8 +304,8 @@ export default function UsagePage() {
             </div>
 
             {/* AGENTES */}
-            <div className="bg-white rounded-xl border border-ink-100 overflow-hidden">
-              <div className="px-6 py-4 border-b border-ink-100">
+            <div className="bg-white rounded-xl border border-ink-100 overflow-x-auto">
+              <div className="px-4 sm:px-6 py-4 border-b border-ink-100">
                 <h2 className="text-sm font-semibold text-ink-900">
                   Agentes por uso
                 </h2>
@@ -313,7 +313,7 @@ export default function UsagePage() {
               {agents.length === 0 ? (
                 <div className="p-6 text-center text-ink-400 text-sm">sem dados</div>
               ) : (
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[400px]">
                   <thead className="bg-ink-50 text-[10px] uppercase tracking-wider text-ink-500 font-mono">
                     <tr>
                       <th className="text-left px-4 py-2">agente</th>
@@ -342,8 +342,8 @@ export default function UsagePage() {
           </div>
 
           {/* TOP CONVERSAS */}
-          <div className="bg-white rounded-xl border border-ink-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-ink-100">
+          <div className="bg-white rounded-xl border border-ink-100 overflow-x-auto">
+            <div className="px-4 sm:px-6 py-4 border-b border-ink-100">
               <h2 className="text-sm font-semibold text-ink-900">
                 Conversas mais caras (último mês)
               </h2>
@@ -351,7 +351,7 @@ export default function UsagePage() {
             {conversations.length === 0 ? (
               <div className="p-6 text-center text-ink-400 text-sm">sem dados</div>
             ) : (
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[500px]">
                 <thead className="bg-ink-50 text-[10px] uppercase tracking-wider text-ink-500 font-mono">
                   <tr>
                     <th className="text-left px-4 py-2">título</th>
@@ -410,11 +410,11 @@ function MetricCard({
     ink:    "text-ink-700 bg-ink-50",
   };
   return (
-    <div className="bg-white rounded-xl border border-ink-100 p-5">
-      <div className={`inline-block px-2 py-0.5 rounded text-[9px] uppercase tracking-wider font-mono mb-3 ${colors[color]}`}>
+    <div className="bg-white rounded-xl border border-ink-100 p-3 sm:p-5">
+      <div className={`inline-block px-2 py-0.5 rounded text-[9px] uppercase tracking-wider font-mono mb-2 sm:mb-3 ${colors[color]}`}>
         {label}
       </div>
-      <div className="text-2xl font-bold tabular-nums text-ink-900 mb-1">
+      <div className="text-xl sm:text-2xl font-bold tabular-nums text-ink-900 mb-1">
         {value}
       </div>
       <div className="text-[10px] font-mono text-ink-400">{hint}</div>

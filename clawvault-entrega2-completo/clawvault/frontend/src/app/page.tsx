@@ -51,20 +51,20 @@ export default function HomePage() {
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6 sm:mb-8">
         <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-1">
           Dashboard
         </div>
-        <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
+        <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
           Visão geral
         </h1>
-        <p className="text-ink-500 dark:text-ink-400 mt-1">
+        <p className="text-ink-500 dark:text-ink-400 mt-1 text-sm sm:text-base">
           Status do seu sistema de agentes multi-LLM
         </p>
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <StatCard
           icon={<DollarSign size={18} />}
           label="Gasto do mês"
@@ -203,7 +203,7 @@ export default function HomePage() {
         <h2 className="font-display text-lg font-semibold text-ink-900 dark:text-ink-50 mb-4">
           Providers configurados
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
           {Object.entries(status.providers).map(([name, active]) => (
             <div
               key={name}
@@ -241,17 +241,17 @@ function StatCard({
   progress?: number;
 }) {
   return (
-    <div className="card p-5 card-hover">
-      <div className="flex items-center justify-between mb-4">
-        <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider">
+    <div className="card p-4 sm:p-5 card-hover">
+      <div className="flex items-center justify-between mb-3 sm:mb-4">
+        <div className="font-mono text-[10px] sm:text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider">
           {label}
         </div>
         <div className="text-ink-400 dark:text-ink-500">{icon}</div>
       </div>
-      <div className="font-display text-3xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
+      <div className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
         {value}
       </div>
-      <div className="text-xs text-ink-500 dark:text-ink-400 mt-1">{hint}</div>
+      <div className="text-[10px] sm:text-xs text-ink-500 dark:text-ink-400 mt-1">{hint}</div>
       {typeof progress === "number" && (
         <div className="mt-3 h-1 bg-ink-100 dark:bg-ink-700 rounded-full overflow-hidden">
           <div
@@ -307,10 +307,10 @@ function EmptyState({ message }: { message: string }) {
 function LoadingState() {
   return (
     <div className="animate-pulse space-y-4">
-      <div className="h-10 bg-ink-100 dark:bg-ink-800 rounded w-64" />
-      <div className="grid grid-cols-4 gap-4">
+      <div className="h-10 bg-ink-100 dark:bg-ink-800 rounded w-48 sm:w-64" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-32 bg-ink-100 dark:bg-ink-800 rounded" />
+          <div key={i} className="h-28 sm:h-32 bg-ink-100 dark:bg-ink-800 rounded" />
         ))}
       </div>
       <div className="h-64 bg-ink-100 dark:bg-ink-800 rounded" />

@@ -36,26 +36,26 @@ export default function AgentsPage() {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-8 flex items-start justify-between">
+      <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-1">
             Agentes
           </div>
-          <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
+          <h1 className="font-display text-2xl sm:text-4xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
             Agentes e sub-agentes
           </h1>
-          <p className="text-ink-500 dark:text-ink-400 mt-1">
+          <p className="text-ink-500 dark:text-ink-400 mt-1 text-sm sm:text-base">
             Gerencie seu agente principal e sub-agentes especializados
           </p>
         </div>
-        <button className="btn-primary" onClick={() => setShowCreate(true)}>
+        <button className="btn-primary whitespace-nowrap" onClick={() => setShowCreate(true)}>
           <Plus size={16} /> Criar sub-agente
         </button>
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         {/* Lista */}
-        <div className="col-span-4 space-y-2">
+        <div className="lg:col-span-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-2">
           {loading && <div className="text-sm text-ink-400 dark:text-ink-500">Carregando...</div>}
           {agents.map((agent) => (
             <button
@@ -86,7 +86,7 @@ export default function AgentsPage() {
         </div>
 
         {/* Detalhes */}
-        <div className="col-span-8">
+        <div className="lg:col-span-8">
           {detail ? (
             <AgentDetail detail={detail} />
           ) : (
@@ -132,7 +132,7 @@ function AgentDetail({
         </div>
         <p className="text-ink-600 dark:text-ink-300 mt-2">{agent.role}</p>
 
-        <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-ink-100 dark:border-ink-700">
+        <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-6 pt-6 border-t border-ink-100 dark:border-ink-700">
           <Field label="Pai" value={agent.parent_agent || "—"} />
           <Field
             label="Modelo preferido"
@@ -146,7 +146,7 @@ function AgentDetail({
         <h3 className="font-display text-lg font-semibold text-ink-900 dark:text-ink-50 mb-4">
           Memória progressiva
         </h3>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <MemoryLevelCard
             level="core"
             label="CORE"
@@ -223,7 +223,7 @@ function MemoryLevelCard({
       <div className="font-mono text-xs font-semibold text-ink-700 dark:text-ink-300 mb-1">
         {label}
       </div>
-      <div className="font-display text-3xl font-bold text-ink-900 dark:text-ink-50 mb-1">
+      <div className="font-display text-2xl sm:text-3xl font-bold text-ink-900 dark:text-ink-50 mb-1">
         {stats.entries}
       </div>
       <div className="text-xs text-ink-500 dark:text-ink-400 mb-2">~{stats.tokens} tokens</div>
@@ -264,7 +264,7 @@ function CreateAgentModal({
 
   return (
     <div className="fixed inset-0 bg-ink-900/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-white dark:bg-ink-800 rounded-lg p-6 w-full max-w-md animate-slide-up">
+      <div className="bg-white dark:bg-ink-800 rounded-lg p-5 sm:p-6 w-full max-w-md mx-4 animate-slide-up">
         <h2 className="font-display text-xl font-semibold mb-4 dark:text-ink-50">
           Criar sub-agente
         </h2>

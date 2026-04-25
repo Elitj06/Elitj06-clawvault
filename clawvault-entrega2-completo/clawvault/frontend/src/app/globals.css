@@ -134,3 +134,11 @@ body {
            hover:text-ink-50 dark:hover:text-ink-900;
   }
 }
+
+/* Mobile-specific overrides */
+@media (max-width: 1023px) {
+  /* Prevent body scroll when sidebar is open */
+  body.sidebar-open {
+    overflow: hidden;
+  }
+}

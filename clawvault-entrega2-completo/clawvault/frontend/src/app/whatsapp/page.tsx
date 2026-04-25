@@ -82,19 +82,19 @@ export default function WhatsAppPage() {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-8 flex items-start justify-between">
+      <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-1">
             WhatsApp
           </div>
-          <h1 className="font-display text-4xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
+          <h1 className="font-display text-2xl sm:text-4xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
             Atendimento via WhatsApp
           </h1>
-          <p className="text-ink-500 dark:text-ink-400 mt-1">
+          <p className="text-ink-500 dark:text-ink-400 mt-1 text-sm sm:text-base">
             Via Evolution API — auto-resposta com IA para seus contatos
           </p>
         </div>
-        <button onClick={loadAll} className="btn-ghost" disabled={loading}>
+        <button onClick={loadAll} className="btn-ghost self-start" disabled={loading}>
           <RefreshCw size={14} /> Atualizar
         </button>
       </div>
@@ -117,12 +117,12 @@ export default function WhatsAppPage() {
       {qrCode && <QRCodeDisplay code={qrCode} onClose={() => setQrCode(null)} />}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-ink-100 dark:border-ink-700">
+      <div className="flex gap-1 mb-4 border-b border-ink-100 dark:border-ink-700 overflow-x-auto">
         <TabButton
           active={activeTab === "status"}
           onClick={() => setActiveTab("status")}
           icon={<Send size={14} />}
-          label="Enviar mensagem"
+          label="Enviar"
         />
         <TabButton
           active={activeTab === "contacts"}
@@ -134,7 +134,7 @@ export default function WhatsAppPage() {
           active={activeTab === "config"}
           onClick={() => setActiveTab("config")}
           icon={<Settings size={14} />}
-          label="Configurações"
+          label="Config"
         />
       </div>
 
@@ -248,7 +248,7 @@ function QRCodeDisplay({
 
   return (
     <div className="fixed inset-0 bg-ink-900/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-white dark:bg-ink-800 rounded-lg p-8 max-w-md animate-slide-up">
+      <div className="bg-white dark:bg-ink-800 rounded-lg p-5 sm:p-8 max-w-md mx-4 animate-slide-up">
         <h3 className="font-display text-xl font-semibold mb-4 text-center dark:text-ink-50">
           Escaneie com seu WhatsApp
         </h3>
@@ -353,8 +353,8 @@ function ContactsList({ contacts }: { contacts: WhatsAppContact[] }) {
   }
 
   return (
-    <div className="card overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="card overflow-x-auto">
+      <table className="w-full text-sm min-w-[500px]">
         <thead className="bg-ink-50 dark:bg-ink-900 border-b border-ink-100 dark:border-ink-700">
           <tr>
             <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400">

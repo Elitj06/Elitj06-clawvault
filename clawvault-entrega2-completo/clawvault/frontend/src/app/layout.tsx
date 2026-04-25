@@ -1,10 +1,15 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { Sidebar } from "@/components/Sidebar";
+import { LayoutShell } from "@/components/LayoutShell";
 
 export const metadata: Metadata = {
   title: "ClawVault — Dashboard",
   description: "Sistema de agentes multi-LLM com memória persistente",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -23,10 +28,7 @@ export default function RootLayout({
       </head>
       <body className="bg-ink-50 dark:bg-ink-950 text-ink-900 dark:text-ink-100 min-h-screen">
         <div className="flex min-h-screen">
-          <Sidebar />
-          <main className="flex-1 ml-64">
-            <div className="max-w-7xl mx-auto px-8 py-8">{children}</div>
-          </main>
+          <LayoutShell>{children}</LayoutShell>
         </div>
       </body>
     </html>

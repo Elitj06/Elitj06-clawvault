@@ -176,32 +176,32 @@ export default function VaultPage() {
   const totalNotes = layers.reduce((sum, l) => sum + l.count, 0);
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col animate-fade-in">
+    <div className="h-[calc(100vh-7rem)] lg:h-[calc(100vh-4rem)] flex flex-col animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-2">
         <div>
           <div className="font-mono text-xs text-ink-500 dark:text-ink-400 uppercase tracking-wider mb-1">
             Vault
           </div>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink-900 dark:text-ink-50">
             Base de conhecimento
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          <div className="text-sm font-mono text-ink-600 dark:text-ink-400">
+          <div className="text-xs sm:text-sm font-mono text-ink-600 dark:text-ink-400">
             {totalNotes} notas • {layers.filter((l) => l.count > 0).length} camadas
           </div>
           <button onClick={loadGraph} className="btn-secondary text-xs flex items-center gap-1.5">
             <Network size={14} />
-            Grafo
+            <span className="hidden sm:inline">Grafo</span>
           </button>
         </div>
       </div>
 
-      {/* Main content: 3-panel layout like Obsidian */}
-      <div className="flex-1 flex gap-4 min-h-0">
-        {/* Left panel: file tree */}
-        <div className="w-72 card p-3 flex flex-col overflow-hidden shrink-0">
+      {/* Main content: 3-panel layout */}
+      <div className="flex-1 flex flex-col lg:flex-row gap-3 sm:gap-4 min-h-0">
+        {/* Left panel: file tree — collapsible on mobile */}
+        <div className="lg:w-72 card p-3 flex flex-col overflow-hidden shrink-0 lg:max-h-full max-h-48 lg:max-h-none">
           {/* Search */}
           <div className="mb-3">
             <div className="relative">
@@ -265,7 +265,7 @@ export default function VaultPage() {
         </div>
 
         {/* Middle panel: note list */}
-        <div className="w-80 card p-3 flex flex-col overflow-hidden shrink-0">
+        <div className="lg:w-80 card p-3 flex flex-col overflow-hidden shrink-0 lg:max-h-full max-h-48 lg:max-h-none">
           <div className="text-xs font-semibold uppercase tracking-wider text-ink-400 dark:text-ink-500 mb-2 flex items-center gap-1.5">
             <FileText size={12} />
             {searchQuery ? `Resultados (${displayNotes.length})` : `Notas recentes (${displayNotes.length})`}

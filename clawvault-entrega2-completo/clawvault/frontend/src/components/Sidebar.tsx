@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   LayoutDashboard,
   MessageSquare,
@@ -12,6 +12,8 @@ import {
   BarChart3,
   Settings,
   Clock,
+  Menu,
+  X,
 } from "lucide-react";
 import { api, type Conversation } from "@/lib/api";
 import { ThemeToggle } from "./ThemeToggle";
@@ -43,7 +45,7 @@ export function onConversationSelected(cb: (id: number | null) => void) {
   _onConversationSelected = cb;
 }
 
-export function Sidebar() {
+export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -52,13 +54,33 @@ export function Sidebar() {
     api.listConversations(10).then((d) => setConversations(d.conversations)).catch(() => {});
   }, []);
 
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    onClose();
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function openConversation(id: number) {
     setSelectedConversationId(id);
     router.push("/chat");
   }
 
   return (
-    <aside className="w-64 fixed left-0 top-0 h-screen bg-white dark:bg-ink-900 border-r border-ink-100 dark:border-ink-800 flex flex-col">
+    <>
+      {/* Backdrop overlay - mobile only */}
+      {open && (
+        <div
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+      <aside
+        className={`
+          w-64 fixed left-0 top-0 h-screen bg-white dark:bg-ink-900 border-r border-ink-100 dark:border-ink-800 flex flex-col z-50
+          transition-transform duration-300 ease-in-out
+          lg:translate-x-0
+          ${open ? "translate-x-0" : "-translate-x-full"}
+        `}
+      >
       {/* Logo */}
       <div className="px-6 py-6 border-b border-ink-100 dark:border-ink-800">
         <Link href="/" className="flex items-center gap-2.5">
@@ -126,12 +148,35 @@ export function Sidebar() {
         </div>
       )}
 
+      {/* Close button - mobile only */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-3 p-1 rounded-md hover:bg-ink-100 dark:hover:bg-ink-800 lg:hidden"
+        aria-label="Fechar menu"
+      >
+        <X size={18} />
+      </button>
+
       {/* Footer: Theme + Status */}
       <div className="px-4 py-4 border-t border-ink-100 dark:border-ink-800 space-y-2">
         <ThemeToggle />
         <StatusIndicator />
       </div>
     </aside>
+    </>
+  );
+}
+
+// Hamburger button for mobile header
+export function HamburgerButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="lg:hidden p-2 rounded-md hover:bg-ink-100 dark:hover:bg-ink-800 transition-colors"
+      aria-label="Abrir menu"
+    >
+      <Menu size={20} />
+    </button>
   );
 }
 

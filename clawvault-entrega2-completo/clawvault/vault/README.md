@@ -1,13 +1,18 @@
-# 🧠 Vault do ClawVault
+# 🧠 ClawVault — Vault Backup
 
-Este é seu segundo cérebro. Tudo aqui é markdown — você pode
-abrir no Obsidian, VS Code, ou qualquer editor de texto.
+Backup automático da base de conhecimento do ClawVault.
 
 ## Estrutura
 
-- `00_raw/` — dados brutos (não edite)
-- `10_wiki/` — conhecimento estruturado com links [[entre]] páginas
-- `20_output/` — conteúdo que você vai publicar
-- `30_agents/` — memória dos agentes
-- `40_skills/` — skills e padrões aprendidos
-- `99_index/` — índices e grafo de conexões
+- `10_wiki/` — Conhecimento estruturado (wiki, projetos, conceitos, eventos, pessoas)
+- `99_index/` — Índices e metadados do grafo de conexões
+
+## Backup
+
+Automático via cron → push para este repo a cada 6h.
+
+Script: `/usr/local/bin/clawvault-backup`
+
+## Acesso
+
+Repo privado — apenas Elitj06.
