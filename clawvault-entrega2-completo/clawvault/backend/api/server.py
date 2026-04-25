@@ -51,6 +51,11 @@ from backend.memory.multi_agent import (
 )
 from backend.compression import default_compressor
 from backend.observability import metrics
+from backend.slash_commands import (
+    is_slash_command,
+    execute_slash_command,
+    list_commands,
+)
 
 
 # ==========================================================================
@@ -218,6 +223,31 @@ def list_models(available_only: bool = False):
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
     """Envia uma mensagem e recebe resposta (sync)."""
+    # === SLASH COMMAND INTERCEPTION (P7) ===
+    if is_slash_command(req.message):
+        result = execute_slash_command(req.message)
+        if result is not None:
+            conv_id = req.conversation_id or memory.create_conversation(
+                agent_name=req.agent_name
+            )
+            memory.add_message(conv_id, "user", req.message)
+            memory.add_message(
+                conv_id, "assistant", result.message,
+                model_used="slash-command-local",
+            )
+            return ChatResponse(
+                content=result.message,
+                model_id="slash-command",
+                provider="local",
+                input_tokens=0,
+                output_tokens=0,
+                cost_usd=0.0,
+                complexity="TRIVIAL",
+                conversation_id=conv_id,
+                compression_savings=0,
+            )
+
+    # === fluxo normal ===
     # Cria ou usa conversa existente
     conv_id = req.conversation_id
     if not conv_id:
@@ -358,6 +388,43 @@ async def chat_stream(req: ChatRequest):
     Versão streaming do /api/chat.
     Retorna eventos SSE com deltas de texto enquanto o LLM gera a resposta.
     """
+    # === SLASH COMMAND INTERCEPTION (P7) ===
+    if is_slash_command(req.message):
+        result = execute_slash_command(req.message)
+        if result is not None:
+            conv_id = req.conversation_id or memory.create_conversation(
+                agent_name=req.agent_name
+            )
+            memory.add_message(conv_id, "user", req.message)
+            memory.add_message(
+                conv_id, "assistant", result.message,
+                model_used="slash-command-local",
+            )
+
+            async def slash_generator():
+                yield _sse_event("meta", {
+                    "conversation_id": conv_id,
+                    "model": "slash-command",
+                    "provider": "local",
+                    "complexity": "TRIVIAL",
+                })
+                yield _sse_event("delta", {"text": result.message})
+                yield _sse_event("done", {
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cached_tokens": 0,
+                    "cost_usd": 0.0,
+                    "compression_savings": 0,
+                    "is_command": True,
+                    "command_data": result.data,
+                })
+
+            return StreamingResponse(
+                slash_generator(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+
     conv_id = req.conversation_id
     if not conv_id:
         conv_id = memory.create_conversation(agent_name=req.agent_name)
@@ -452,6 +519,12 @@ async def chat_stream(req: ChatRequest):
 def _sse_event(event_name: str, data: dict) -> str:
     """Formata um evento SSE."""
     return f"event: {event_name}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+@app.get("/api/commands")
+def list_available_commands():
+    """Lista todos os slash commands disponíveis (para autocomplete na UI)."""
+    return {"commands": list_commands()}
 
 
 @app.websocket("/ws/chat")
