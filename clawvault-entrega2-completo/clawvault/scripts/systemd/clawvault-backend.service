@@ -1,0 +1,45 @@
+[Unit]
+Description=ClawVault Backend (FastAPI/uvicorn)
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/projects/Elitj06-clawvault/clawvault-entrega2-completo/clawvault
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=-/root/projects/Elitj06-clawvault/clawvault-entrega2-completo/clawvault/.env
+
+ExecStart=/usr/bin/python3 -m uvicorn backend.api.server:app --host 0.0.0.0 --port 8000
+
+# === Restart policy ===
+Restart=on-failure
+RestartSec=10s
+
+# === Resource limits — calibrado para Hetzner CPX21 (3 vCPU, 4GB RAM) ===
+# Coexiste com OpenClaw (~540MB) e GymFlow (~200MB) no mesmo VPS
+MemoryMax=600M
+MemoryHigh=500M
+CPUQuota=120%
+TasksMax=200
+
+# === Hardening ===
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/root/projects/Elitj06-clawvault /var/log
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictRealtime=true
+
+# === Logging ===
+StandardOutput=append:/var/log/clawvault-backend.log
+StandardError=append:/var/log/clawvault-backend.err
+
+[Install]
+WantedBy=multi-user.target
