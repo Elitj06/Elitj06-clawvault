@@ -49,6 +49,7 @@ from backend.memory.multi_agent import (
     ensure_multi_agent_schema,
 )
 from backend.compression import default_compressor
+from backend.observability import metrics
 
 
 # ==========================================================================
@@ -671,6 +672,46 @@ def vault_graph():
 def vault_entities():
     """Lista todas as entidades do vault."""
     return vault.list_entities()
+
+
+# ==========================================================================
+# ROTAS: OBSERVABILITY (P3)
+# ==========================================================================
+
+@app.get("/api/observability/overview")
+def observability_overview(days: int = 7):
+    """Visão geral das métricas dos últimos N dias."""
+    return metrics.overview(days=days)
+
+
+@app.get("/api/observability/by-model")
+def observability_by_model(days: int = 7):
+    """Quebra de uso/custo por modelo."""
+    return {"models": metrics.by_model(days=days)}
+
+
+@app.get("/api/observability/by-agent")
+def observability_by_agent(days: int = 7):
+    """Quebra de uso/custo por agente."""
+    return {"agents": metrics.by_agent(days=days)}
+
+
+@app.get("/api/observability/cache")
+def observability_cache(days: int = 7):
+    """Métricas detalhadas de prompt caching."""
+    return metrics.cache_metrics(days=days)
+
+
+@app.get("/api/observability/timeline")
+def observability_timeline(days: int = 30, granularity: str = "day"):
+    """Série temporal de uso. granularity = 'day' ou 'hour'."""
+    return {"timeline": metrics.timeline(days=days, granularity=granularity)}
+
+
+@app.get("/api/observability/top-conversations")
+def observability_top_conversations(limit: int = 10):
+    """Conversas mais caras do último mês."""
+    return {"conversations": metrics.top_conversations(limit=limit)}
 
 
 # ==========================================================================
