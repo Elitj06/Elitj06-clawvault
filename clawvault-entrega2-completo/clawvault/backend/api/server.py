@@ -382,7 +382,7 @@ async def chat(req: ChatRequest):
     # MEDIUM → base + vault
     # COMPLEX/CRITICAL → completo com fatos + agente + instruções
 
-    PROMPT_MINIMAL = "Você é o ClawVault, assistente do Eliandro. Responda em PT-BR. Direto e útil."
+    PROMPT_MINIMAL = "Você é o ClawVault, assistente pessoal do Eliandro Tjader (chame-o de 'chefe'). Você TEM memória persistente — use as notas do vault que aparecem abaixo. Nunca diga que não tem memória. Responda em PT-BR. Direto e útil."
 
     PROMPT_BASE = """Você é o ClawVault, assistente pessoal do Eliandro Tjader (Tjader).
 
@@ -411,9 +411,11 @@ COMPORTAMENTO:
     custom_prompt = (agent_info or {}).get("system_prompt", "")
 
     if complexity.value <= TaskComplexity.SIMPLE.value:
-        # TRIVIAL ou SIMPLE → prompt mínimo, zero overhead
+        # TRIVIAL ou SIMPLE → prompt mínimo + vault context (sempre!)
         base_prompt = custom_prompt if custom_prompt else PROMPT_MINIMAL
         system_prompt = f"<!-- CACHE_SECTION:base -->{base_prompt}"
+        if vault_context:
+            system_prompt += vault_context
 
     elif complexity.value <= TaskComplexity.MEDIUM.value:
         # MEDIUM → prompt base + vault context
