@@ -8,22 +8,22 @@ const PROVIDER_INFO: Record<string, { url: string; free: boolean; note: string }
   openrouter: {
     url: "https://openrouter.ai/settings/keys",
     free: true,
-    note: "300+ modelos numa só chave. Inclui grátis.",
+    note: "Gateway 300+ modelos. Alguns grátis, outros pagos.",
   },
   anthropic: {
     url: "https://console.anthropic.com/settings/keys",
     free: false,
-    note: "Claude (Opus, Sonnet, Haiku)",
+    note: "Claude Opus/Sonnet/Haiku — $3-15/M input tokens",
   },
   openai: {
     url: "https://platform.openai.com/api-keys",
     free: false,
-    note: "GPT-5, GPT-4o",
+    note: "GPT-5, GPT-4.1, GPT-4o — Tier 1 $100/mês",
   },
   google: {
     url: "https://aistudio.google.com/app/apikey",
-    free: true,
-    note: "Gemini — 1500 req/dia grátis",
+    free: false,
+    note: "⚠️ Créditos GCP NÃO cobrem Gemini — cobrança real",
   },
   deepseek: {
     url: "https://platform.deepseek.com/api_keys",
@@ -32,8 +32,13 @@ const PROVIDER_INFO: Record<string, { url: string; free: boolean; note: string }
   },
   zai: {
     url: "https://z.ai/model-api",
+    free: false,
+    note: "⚠️ Coding Plan PAGO — consome créditos por token",
+  },
+  bigmodel: {
+    url: "https://open.bigmodel.cn",
     free: true,
-    note: "GLM — tem modelos 100% grátis",
+    note: "GLM free tier — créditos de boas-vindas + modelos free",
   },
   groq: {
     url: "https://console.groq.com/keys",
