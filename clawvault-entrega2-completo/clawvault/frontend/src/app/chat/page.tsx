@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Loader2, Sparkles, Zap, DollarSign, Hash } from "lucide-react";
+import { Send, Loader2, Sparkles, Zap, DollarSign, Hash, Paperclip, Image, Mic, X } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   getSelectedConversationId,
@@ -15,6 +15,13 @@ import {
 } from "@/components/Sidebar";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+interface FileAttachment {
+  name: string;
+  type: string; // "image" | "audio" | "file"
+  dataUrl: string;
+  size: number;
+}
 
 interface Message {
   id: string;
@@ -27,6 +34,7 @@ interface Message {
   complexity?: string;
   compressionSaved?: number;
   streaming?: boolean;
+  attachments?: FileAttachment[];
 }
 
 interface Agent {
@@ -46,9 +54,11 @@ export default function ChatPage() {
   const [totalCost, setTotalCost] = useState(0);
   const [statusText, setStatusText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<FileAttachment[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Load agents on mount
@@ -136,13 +146,57 @@ export default function ChatPage() {
   // -------------------------------------------------------------------------
   // Send with streaming SSE
   // -------------------------------------------------------------------------
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        let type: FileAttachment["type"] = "file";
+        if (file.type.startsWith("image/")) type = "image";
+        else if (file.type.startsWith("audio/")) type = "audio";
+
+        setAttachments((prev) => [...prev, {
+          name: file.name,
+          type,
+          dataUrl,
+          size: file.size,
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  }
+
+  function removeAttachment(index: number) {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function send() {
     const text = input.trim();
-    if (!text || sending) return;
+    if ((!text && attachments.length === 0) || sending) return;
 
     setError(null);
     setSending(true);
+
+    // Build message text including attachment descriptions
+    let messageText = text;
+    const currentAttachments = [...attachments];
+    if (currentAttachments.length > 0) {
+      const fileDescs = currentAttachments.map((a) => {
+        if (a.type === "image") return `[Imagem: ${a.name}]`;
+        if (a.type === "audio") return `[Áudio: ${a.name}]`;
+        return `[Arquivo: ${a.name}]`;
+      });
+      messageText = fileDescs.join("\n") + (text ? "\n" + text : "");
+    }
+
     setInput("");
+    setAttachments([]);
     setStatusText("Enviando...");
 
     // Add user message immediately
@@ -150,7 +204,7 @@ export default function ChatPage() {
     const assistantMsgId = `a-${Date.now()}`;
     setMessages((m) => [
       ...m,
-      { id: userMsgId, role: "user", content: text },
+      { id: userMsgId, role: "user", content: messageText, attachments: currentAttachments.length > 0 ? currentAttachments : undefined },
       {
         id: assistantMsgId,
         role: "assistant",
@@ -360,18 +414,17 @@ export default function ChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
+      <div className="flex-1 overflow-y-auto space-y-4 mb-4 px-1 sm:pr-2">
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 rounded-full bg-accent-50 dark:bg-accent-900/30 flex items-center justify-center mb-4">
-              <Sparkles className="text-accent-400" size={28} />
+          <div className="h-full flex flex-col items-center justify-center text-center px-4">
+            <div className="w-14 h-14 rounded-full bg-accent-50 dark:bg-accent-900/30 flex items-center justify-center mb-3">
+              <Sparkles className="text-accent-400" size={24} />
             </div>
-            <h3 className="font-display text-xl font-semibold text-ink-900 dark:text-ink-50 mb-2">
+            <h3 className="font-display text-lg font-semibold text-ink-900 dark:text-ink-50 mb-2">
               Comece uma conversa
             </h3>
             <p className="text-ink-500 dark:text-ink-400 text-sm max-w-sm">
-              O sistema vai classificar sua pergunta e escolher o modelo mais
-              econômico automaticamente. Respostas via streaming SSE.
+              Anexe fotos, áudios ou prints. O sistema escolhe o melhor modelo automaticamente.
             </p>
           </div>
         )}
@@ -396,8 +449,43 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Attachments preview */}
+      {attachments.length > 0 && (
+        <div className="flex gap-2 px-3 py-2 overflow-x-auto">
+          {attachments.map((att, i) => (
+            <div key={i} className="relative shrink-0 group">
+              {att.type === "image" ? (
+                <div className="w-16 h-16 rounded-lg border border-ink-200 dark:border-ink-700 overflow-hidden">
+                  <img src={att.dataUrl} alt={att.name} className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-lg border border-ink-200 dark:border-ink-700 bg-ink-50 dark:bg-ink-800 flex flex-col items-center justify-center p-1">
+                  {att.type === "audio" ? <Mic size={16} className="text-ink-400" /> : <Paperclip size={16} className="text-ink-400" />}
+                  <span className="text-[8px] text-ink-400 truncate w-full text-center mt-0.5">{att.name}</span>
+                </div>
+              )}
+              <button
+                onClick={() => removeAttachment(i)}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Input */}
       <div className="card p-2 sm:p-3 focus-within:border-accent-300 transition-colors">
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,audio/*,.pdf,.txt,.md,.csv,.json"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+        />
         <textarea
           ref={textareaRef}
           value={input}
@@ -409,12 +497,22 @@ export default function ChatPage() {
           readOnly={sending}
         />
         <div className="flex items-center justify-between mt-2">
-          <div className="text-xs text-ink-400 dark:text-ink-500 font-mono">
-            {input.length > 0 ? `${input.length} caracteres` : ""}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sending}
+              className="p-1.5 rounded-md hover:bg-ink-100 dark:hover:bg-ink-800 text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 transition-colors disabled:opacity-40"
+              title="Anexar arquivo"
+            >
+              <Paperclip size={16} />
+            </button>
+            <div className="text-xs text-ink-400 dark:text-ink-500 font-mono">
+              {input.length > 0 ? `${input.length} chars` : ""}
+            </div>
           </div>
           <button
             onClick={send}
-            disabled={!input.trim() || sending}
+            disabled={(!input.trim() && attachments.length === 0) || sending}
             className="btn-primary text-xs sm:text-sm disabled:opacity-40"
           >
             {sending ? (
@@ -435,6 +533,23 @@ function MessageBubble({ message }: { message: Message }) {
     return (
       <div className="flex justify-end animate-slide-up">
         <div className="max-w-[85%] sm:max-w-2xl bg-ink-900 dark:bg-accent-400 text-ink-50 dark:text-ink-900 rounded-lg rounded-br-sm px-3 sm:px-4 py-2.5 text-sm">
+          {/* Show attachments */}
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {message.attachments.map((att, i) => (
+                att.type === "image" ? (
+                  <div key={i} className="w-20 h-20 rounded-md overflow-hidden border border-white/20">
+                    <img src={att.dataUrl} alt={att.name} className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white/10 text-[10px]">
+                    {att.type === "audio" ? <Mic size={10} /> : <Paperclip size={10} />}
+                    {att.name}
+                  </div>
+                )
+              ))}
+            </div>
+          )}
           {message.content}
         </div>
       </div>

@@ -20,6 +20,7 @@ import {
   SquaresFour,
   Stack,
   Sparkle,
+  List,
 } from "@phosphor-icons/react/dist/ssr";
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -60,6 +61,7 @@ function IconConcepts({ size = 14 }: { size?: number }) { return <Lightbulb size
 function IconEvents({ size = 14 }: { size?: number }) { return <CalendarBlank size={size} />; }
 function IconPeople({ size = 14 }: { size?: number }) { return <User size={size} />; }
 function IconGrid({ size = 14 }: { size?: number }) { return <SquaresFour size={size} />; }
+function IconList({ size = 14 }: { size?: number }) { return <List size={size} />; }
 
 // ─── Colors ──────────────────────────────────────────────────────
 
@@ -124,6 +126,8 @@ export default function VaultPage() {
   const [activeLayer, setActiveLayer] = useState<string | null>(null);
   const [graphData, setGraphData] = useState<{ nodes: any[]; edges: any[] } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  // Mobile: which panel is visible — "list" | "detail"
+  const [mobilePanel, setMobilePanel] = useState<"list" | "detail">("list");
 
   useEffect(() => {
     api.vaultStatus().then((data) => {
@@ -183,6 +187,7 @@ export default function VaultPage() {
   async function openNote(note: NoteItem) {
     setSelectedNote(note);
     setDeleteConfirm(null);
+    setMobilePanel("detail");
     try {
       const data = await api.vaultReadNote(note.path);
       let c = data.content || "";
@@ -197,7 +202,7 @@ export default function VaultPage() {
       const updated = notes.filter((n) => n.path !== path);
       setNotes(updated);
       setFilteredNotes(activeLayer ? updated.filter((n) => n.path.includes(activeLayer)) : updated);
-      if (selectedNote?.path === path) { setSelectedNote(null); setNoteContent(""); }
+      if (selectedNote?.path === path) { setSelectedNote(null); setNoteContent(""); setMobilePanel("list"); }
       setDeleteConfirm(null);
     } catch (e) { console.error("Delete failed:", e); }
   }
@@ -219,10 +224,14 @@ export default function VaultPage() {
     catch { setGraphData(null); }
   }
 
+  function noteTitle(note: NoteItem) {
+    return note.title.replace(/^\d{4}-\d{2}-\d{2}[-_]/, "").replace(/-/g, " ");
+  }
+
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col animate-fade-in">
+    <div className="h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] flex flex-col animate-fade-in">
       {/* Header */}
-      <div className="px-5 py-3 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between shrink-0 bg-white dark:bg-ink-950">
+      <div className="px-4 lg:px-5 py-3 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between shrink-0 bg-white dark:bg-ink-950">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-accent-50 dark:bg-accent-900/20 flex items-center justify-center text-accent-500">
             <IconVault size={17} />
@@ -235,7 +244,7 @@ export default function VaultPage() {
         {viewMode === "browse" && (
           <button onClick={loadGraph}
             className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-accent-50 dark:bg-accent-900/20 text-accent-600 dark:text-accent-300 hover:bg-accent-100 dark:hover:bg-accent-900/30 transition-colors flex items-center gap-1.5">
-            <IconBrain size={13} /> Cérebro
+            <IconBrain size={13} /> <span className="hidden sm:inline">Cérebro</span>
           </button>
         )}
       </div>
@@ -246,131 +255,227 @@ export default function VaultPage() {
           onOpenNote={(n) => { setViewMode("browse"); openNote(n); }}
           onBack={() => setViewMode("browse")} />
       ) : (
-        <div className="flex-1 flex min-h-0">
-          {/* Sidebar */}
-          <div className="w-44 border-r border-ink-100 dark:border-ink-800 flex flex-col shrink-0 bg-white/30 dark:bg-ink-950/50">
-            <div className="p-3">
-              <div className="relative">
-                <span className="absolute left-2.5 top-2 text-ink-400"><IconSearch size={13} /></span>
-                <input type="text" value={searchQuery} onChange={(e) => search(e.target.value)}
-                  placeholder="Buscar no vault..."
-                  className="w-full pl-7 pr-7 py-1.5 text-[11px] border border-ink-200 dark:border-ink-700 rounded-lg bg-white dark:bg-ink-800 text-ink-900 dark:text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-300/40 placeholder:text-ink-400" />
-                {searchQuery && (
-                  <button onClick={() => { setSearchQuery(""); setFilteredNotes(activeLayer ? notes.filter((n) => n.path.includes(activeLayer)) : notes); }}
-                    className="absolute right-2 top-1.5 text-ink-400 hover:text-ink-600"><IconX size={10} /></button>
+        <div className="flex-1 flex min-h-0 overflow-hidden">
+          {/* ==================== MOBILE: single-panel view ==================== */}
+          {/* Note detail (mobile) */}
+          {mobilePanel === "detail" && selectedNote && (
+            <div className="flex-1 flex flex-col min-w-0 md:hidden">
+              <div className="px-4 py-2.5 border-b border-ink-100 dark:border-ink-800 shrink-0">
+                <div className="flex items-center gap-3">
+                  <button onClick={() => { setMobilePanel("list"); }} className="text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 shrink-0"><IconArrowLeft size={18} /></button>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-[13px] font-semibold text-ink-900 dark:text-ink-50 truncate">{noteTitle(selectedNote)}</h2>
+                    <p className="text-[9px] font-mono text-ink-400 mt-0.5 truncate">{selectedNote.path}</p>
+                  </div>
+                </div>
+                {deleteConfirm === selectedNote.path ? (
+                  <div className="flex items-center justify-between mt-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/30">
+                    <span className="text-[11px] text-red-600 dark:text-red-400">Apagar esta nota?</span>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => deleteNote(selectedNote.path)} className="px-3 py-1 text-[10px] font-semibold rounded-md bg-red-500 text-white hover:bg-red-600">Apagar</button>
+                      <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1 text-[10px] font-medium rounded-md bg-white dark:bg-ink-700 text-ink-600 dark:text-ink-300 border border-ink-200 dark:border-ink-600">Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setDeleteConfirm(selectedNote.path)} className="mt-1.5 text-[10px] text-ink-400 hover:text-red-500 transition-colors flex items-center gap-1">
+                    <IconTrash size={10} /> Excluir nota
+                  </button>
                 )}
               </div>
+              <div className="flex-1 overflow-y-auto px-4 py-4">
+                <article className="prose prose-sm dark:prose-invert max-w-none text-ink-800 dark:text-ink-200 whitespace-pre-wrap leading-relaxed text-[13px]">
+                  {noteContent || "Sem conteúdo"}
+                </article>
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto px-2 pb-3">
-              <button onClick={() => { setActiveLayer(null); setSearchQuery(""); setFilteredNotes(notes); }}
-                className={`w-full text-left px-3 py-2 rounded-lg text-[11px] font-medium transition-colors mb-0.5 flex items-center gap-2 ${
-                  !activeLayer ? "bg-accent-50 dark:bg-accent-900/20 text-accent-600 dark:text-accent-300" : "text-ink-500 hover:bg-ink-50 dark:hover:bg-ink-800"}`}>
-                <IconGrid size={13} /> Todas ({notes.length})
-              </button>
-              {layers.map((layer) => layer.count > 0 && (
-                <div key={layer.key}>
-                  <button onClick={() => { if (layer.children) toggleLayer(layer.key); else filterByLayer(layer.path); }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] transition-colors ${
-                      activeLayer === layer.path ? "bg-accent-50 dark:bg-accent-900/20 text-accent-600 dark:text-accent-300" : "text-ink-600 dark:text-ink-400 hover:bg-ink-50 dark:hover:bg-ink-800"}`}>
-                    {layer.children ? (expandedLayers.has(layer.key) ? <IconChevronDown /> : <IconChevronRight />) : <span className="w-3" />}
-                    <IconFolder size={13} />
-                    <span className="flex-1 truncate">{layer.label}</span>
-                    <span className="font-mono text-[10px] text-ink-400">{layer.count}</span>
-                  </button>
-                  {expandedLayers.has(layer.key) && layer.children && (
-                    <div className="ml-5">
-                      {layer.children.filter((c) => c.count > 0).map((child) => (
-                        <button key={child.key} onClick={() => filterByLayer(child.path)}
-                          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] transition-colors ${
-                            activeLayer === child.path ? "bg-accent-50 dark:bg-accent-900/20 text-accent-600 dark:text-accent-300" : "text-ink-500 hover:bg-ink-50 dark:hover:bg-ink-800"}`}>
-                          {catIcon(child.key.split("_")[1])}
-                          <span className="flex-1 truncate">{child.label}</span>
-                          <span className="font-mono text-[10px] text-ink-400">{child.count}</span>
-                        </button>
-                      ))}
-                    </div>
+          )}
+
+          {/* Note list (mobile) */}
+          {(mobilePanel === "list" || !selectedNote) && (
+            <div className="flex-1 flex flex-col min-h-0 md:hidden">
+              {/* Search bar */}
+              <div className="p-3 border-b border-ink-100 dark:border-ink-800 shrink-0">
+                <div className="relative">
+                  <span className="absolute left-2.5 top-2 text-ink-400"><IconSearch size={13} /></span>
+                  <input type="text" value={searchQuery} onChange={(e) => search(e.target.value)}
+                    placeholder="Buscar no vault..."
+                    className="w-full pl-7 pr-7 py-2 text-[12px] border border-ink-200 dark:border-ink-700 rounded-lg bg-white dark:bg-ink-800 text-ink-900 dark:text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-300/40 placeholder:text-ink-400" />
+                  {searchQuery && (
+                    <button onClick={() => { setSearchQuery(""); setFilteredNotes(activeLayer ? notes.filter((n) => n.path.includes(activeLayer)) : notes); }}
+                      className="absolute right-2 top-1.5 text-ink-400 hover:text-ink-600"><IconX size={12} /></button>
                   )}
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Note list */}
-          <div className="w-64 border-r border-ink-100 dark:border-ink-800 flex flex-col shrink-0">
-            <div className="px-4 py-2.5 border-b border-ink-100 dark:border-ink-800 shrink-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
-                {searchQuery ? `Resultados (${filteredNotes.length})` : activeLayer ? `Filtrado (${filteredNotes.length})` : `Notas (${filteredNotes.length})`}
-              </p>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="flex items-center justify-center py-12"><div className="w-4 h-4 border-2 border-ink-200 border-t-accent-400 rounded-full animate-spin" /></div>
-              ) : filteredNotes.length === 0 ? (
-                <div className="px-4 py-12 text-center text-[11px] text-ink-400">Nenhuma nota</div>
-              ) : filteredNotes.map((note, i) => (
-                <button key={i} onClick={() => openNote(note)}
-                  className={`w-full text-left px-4 py-2.5 border-b border-ink-50 dark:border-ink-800/50 transition-colors group ${
-                    selectedNote?.path === note.path ? "bg-accent-50 dark:bg-accent-900/15 border-l-2 border-l-accent-400" : "hover:bg-ink-50 dark:hover:bg-ink-800/50 border-l-2 border-l-transparent"}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: catColor(note.path.split("/")[1] || "other") }} />
-                    <span className="text-[12px] font-medium text-ink-800 dark:text-ink-200 truncate flex-1">
-                      {note.title.replace(/^\d{4}-\d{2}-\d{2}[-_]/, "").replace(/-/g, " ")}
-                    </span>
-                    <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(note.path); }}
-                      className="opacity-0 group-hover:opacity-100 text-ink-300 hover:text-red-500 transition-all p-0.5">
-                      <IconTrash size={11} />
+                {/* Category chips (horizontal scroll) */}
+                <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 -mx-1 px-1">
+                  <button onClick={() => { setActiveLayer(null); setSearchQuery(""); setFilteredNotes(notes); }}
+                    className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors ${
+                      !activeLayer ? "bg-accent-500 text-white" : "bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400"}`}>
+                    Todas ({notes.length})
+                  </button>
+                  {layers.map((layer) => layer.count > 0 && (
+                    <button key={layer.key} onClick={() => { if (!layer.children) filterByLayer(layer.path); else toggleLayer(layer.key); }}
+                      className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors flex items-center gap-1 ${
+                        activeLayer === layer.path ? "bg-accent-500 text-white" : "bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400"}`}>
+                      <IconFolder size={10} />
+                      {layer.label}
+                      <span className="font-mono text-[9px] opacity-70">{layer.count}</span>
                     </button>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5 ml-4">
-                    <span className="text-[9px] font-mono text-ink-400 truncate">{note.path.split("/")[1] || ""}</span>
-                    {fmtDate(note.path) && <span className="text-[9px] text-ink-300 ml-auto">{fmtDate(note.path)}</span>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Note content */}
-          <div className="flex-1 flex flex-col min-w-0">
-            {selectedNote ? (
-              <>
-                <div className="px-5 py-2.5 border-b border-ink-100 dark:border-ink-800 shrink-0">
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => setSelectedNote(null)} className="text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 shrink-0"><IconArrowLeft size={15} /></button>
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-[12px] font-semibold text-ink-900 dark:text-ink-50 truncate">{selectedNote.title.replace(/^\d{4}-\d{2}-\d{2}[-_]/, "").replace(/-/g, " ")}</h2>
-                      <p className="text-[9px] font-mono text-ink-400 mt-0.5 truncate">{selectedNote.path}</p>
+                  ))}
+                </div>
+              </div>
+              {/* Notes list */}
+              <div className="flex-1 overflow-y-auto">
+                {loading ? (
+                  <div className="flex items-center justify-center py-12"><div className="w-4 h-4 border-2 border-ink-200 border-t-accent-400 rounded-full animate-spin" /></div>
+                ) : filteredNotes.length === 0 ? (
+                  <div className="px-4 py-12 text-center text-[12px] text-ink-400">Nenhuma nota</div>
+                ) : filteredNotes.map((note, i) => (
+                  <button key={i} onClick={() => openNote(note)}
+                    className={`w-full text-left px-4 py-3 border-b border-ink-50 dark:border-ink-800/50 transition-colors active:bg-ink-50 dark:active:bg-ink-800/50 ${
+                      selectedNote?.path === note.path ? "bg-accent-50 dark:bg-accent-900/15" : ""}`}>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: catColor(note.path.split("/")[1] || "other") }} />
+                      <span className="text-[13px] font-medium text-ink-800 dark:text-ink-200 truncate flex-1">
+                        {noteTitle(note)}
+                      </span>
                     </div>
+                    <div className="flex items-center gap-2 mt-1 ml-4">
+                      <span className="text-[10px] font-mono text-ink-400 truncate">{note.path.split("/")[1] || ""}</span>
+                      {fmtDate(note.path) && <span className="text-[10px] text-ink-300 ml-auto">{fmtDate(note.path)}</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ==================== DESKTOP: 3-panel view ==================== */}
+          <div className="hidden md:flex flex-1 min-h-0">
+            {/* Sidebar */}
+            <div className="w-44 border-r border-ink-100 dark:border-ink-800 flex flex-col shrink-0 bg-white/30 dark:bg-ink-950/50">
+              <div className="p-3">
+                <div className="relative">
+                  <span className="absolute left-2.5 top-2 text-ink-400"><IconSearch size={13} /></span>
+                  <input type="text" value={searchQuery} onChange={(e) => search(e.target.value)}
+                    placeholder="Buscar no vault..."
+                    className="w-full pl-7 pr-7 py-1.5 text-[11px] border border-ink-200 dark:border-ink-700 rounded-lg bg-white dark:bg-ink-800 text-ink-900 dark:text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-300/40 placeholder:text-ink-400" />
+                  {searchQuery && (
+                    <button onClick={() => { setSearchQuery(""); setFilteredNotes(activeLayer ? notes.filter((n) => n.path.includes(activeLayer)) : notes); }}
+                      className="absolute right-2 top-1.5 text-ink-400 hover:text-ink-600"><IconX size={10} /></button>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto px-2 pb-3">
+                <button onClick={() => { setActiveLayer(null); setSearchQuery(""); setFilteredNotes(notes); }}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-[11px] font-medium transition-colors mb-0.5 flex items-center gap-2 ${
+                    !activeLayer ? "bg-accent-50 dark:bg-accent-900/20 text-accent-600 dark:text-accent-300" : "text-ink-500 hover:bg-ink-50 dark:hover:bg-ink-800"}`}>
+                  <IconGrid size={13} /> Todas ({notes.length})
+                </button>
+                {layers.map((layer) => layer.count > 0 && (
+                  <div key={layer.key}>
+                    <button onClick={() => { if (layer.children) toggleLayer(layer.key); else filterByLayer(layer.path); }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] transition-colors ${
+                        activeLayer === layer.path ? "bg-accent-50 dark:bg-accent-900/20 text-accent-600 dark:text-accent-300" : "text-ink-600 dark:text-ink-400 hover:bg-ink-50 dark:hover:bg-ink-800"}`}>
+                      {layer.children ? (expandedLayers.has(layer.key) ? <IconChevronDown /> : <IconChevronRight />) : <span className="w-3" />}
+                      <IconFolder size={13} />
+                      <span className="flex-1 truncate">{layer.label}</span>
+                      <span className="font-mono text-[10px] text-ink-400">{layer.count}</span>
+                    </button>
+                    {expandedLayers.has(layer.key) && layer.children && (
+                      <div className="ml-5">
+                        {layer.children.filter((c) => c.count > 0).map((child) => (
+                          <button key={child.key} onClick={() => filterByLayer(child.path)}
+                            className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] transition-colors ${
+                              activeLayer === child.path ? "bg-accent-50 dark:bg-accent-900/20 text-accent-600 dark:text-accent-300" : "text-ink-500 hover:bg-ink-50 dark:hover:bg-ink-800"}`}>
+                            {catIcon(child.key.split("_")[1])}
+                            <span className="flex-1 truncate">{child.label}</span>
+                            <span className="font-mono text-[10px] text-ink-400">{child.count}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {deleteConfirm === selectedNote.path ? (
-                    <div className="flex items-center justify-between mt-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/30">
-                      <span className="text-[11px] text-red-600 dark:text-red-400">Apagar esta nota?</span>
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => deleteNote(selectedNote.path)} className="px-3 py-1 text-[10px] font-semibold rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors">Apagar</button>
-                        <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1 text-[10px] font-medium rounded-md bg-white dark:bg-ink-700 text-ink-600 dark:text-ink-300 border border-ink-200 dark:border-ink-600 hover:bg-ink-50 dark:hover:bg-ink-600 transition-colors">Cancelar</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Note list */}
+            <div className="w-64 border-r border-ink-100 dark:border-ink-800 flex flex-col shrink-0">
+              <div className="px-4 py-2.5 border-b border-ink-100 dark:border-ink-800 shrink-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
+                  {searchQuery ? `Resultados (${filteredNotes.length})` : activeLayer ? `Filtrado (${filteredNotes.length})` : `Notas (${filteredNotes.length})`}
+                </p>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {loading ? (
+                  <div className="flex items-center justify-center py-12"><div className="w-4 h-4 border-2 border-ink-200 border-t-accent-400 rounded-full animate-spin" /></div>
+                ) : filteredNotes.length === 0 ? (
+                  <div className="px-4 py-12 text-center text-[11px] text-ink-400">Nenhuma nota</div>
+                ) : filteredNotes.map((note, i) => (
+                  <button key={i} onClick={() => openNote(note)}
+                    className={`w-full text-left px-4 py-2.5 border-b border-ink-50 dark:border-ink-800/50 transition-colors group ${
+                      selectedNote?.path === note.path ? "bg-accent-50 dark:bg-accent-900/15 border-l-2 border-l-accent-400" : "hover:bg-ink-50 dark:hover:bg-ink-800/50 border-l-2 border-l-transparent"}`}>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: catColor(note.path.split("/")[1] || "other") }} />
+                      <span className="text-[12px] font-medium text-ink-800 dark:text-ink-200 truncate flex-1">
+                        {noteTitle(note)}
+                      </span>
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(note.path); }}
+                        className="opacity-0 group-hover:opacity-100 text-ink-300 hover:text-red-500 transition-all p-0.5">
+                        <IconTrash size={11} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 ml-4">
+                      <span className="text-[9px] font-mono text-ink-400 truncate">{note.path.split("/")[1] || ""}</span>
+                      {fmtDate(note.path) && <span className="text-[9px] text-ink-300 ml-auto">{fmtDate(note.path)}</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Note content */}
+            <div className="flex-1 flex flex-col min-w-0">
+              {selectedNote ? (
+                <>
+                  <div className="px-5 py-2.5 border-b border-ink-100 dark:border-ink-800 shrink-0">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => setSelectedNote(null)} className="text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 shrink-0"><IconArrowLeft size={15} /></button>
+                      <div className="min-w-0 flex-1">
+                        <h2 className="text-[12px] font-semibold text-ink-900 dark:text-ink-50 truncate">{noteTitle(selectedNote)}</h2>
+                        <p className="text-[9px] font-mono text-ink-400 mt-0.5 truncate">{selectedNote.path}</p>
                       </div>
                     </div>
-                  ) : (
-                    <button onClick={() => setDeleteConfirm(selectedNote.path)} className="mt-1.5 text-[10px] text-ink-400 hover:text-red-500 transition-colors flex items-center gap-1">
-                      <IconTrash size={10} /> Excluir nota
-                    </button>
-                  )}
+                    {deleteConfirm === selectedNote.path ? (
+                      <div className="flex items-center justify-between mt-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/30">
+                        <span className="text-[11px] text-red-600 dark:text-red-400">Apagar esta nota?</span>
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => deleteNote(selectedNote.path)} className="px-3 py-1 text-[10px] font-semibold rounded-md bg-red-500 text-white hover:bg-red-600">Apagar</button>
+                          <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1 text-[10px] font-medium rounded-md bg-white dark:bg-ink-700 text-ink-600 dark:text-ink-300 border border-ink-200 dark:border-ink-600">Cancelar</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => setDeleteConfirm(selectedNote.path)} className="mt-1.5 text-[10px] text-ink-400 hover:text-red-500 transition-colors flex items-center gap-1">
+                        <IconTrash size={10} /> Excluir nota
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-5 py-4">
+                    <article className="prose prose-sm dark:prose-invert max-w-none text-ink-800 dark:text-ink-200 whitespace-pre-wrap leading-relaxed text-[13px]">
+                      {noteContent || "Sem conteúdo"}
+                    </article>
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
+                  <div className="w-16 h-16 rounded-2xl bg-ink-50 dark:bg-ink-800 flex items-center justify-center mb-4 text-ink-300 dark:text-ink-600">
+                    <IconLayers size={28} />
+                  </div>
+                  <h3 className="font-display text-sm font-semibold text-ink-700 dark:text-ink-300 mb-1">Selecione uma nota</h3>
+                  <p className="text-[11px] text-ink-400 max-w-xs">Navegue pelas categorias ou use a busca.</p>
                 </div>
-                <div className="flex-1 overflow-y-auto px-5 py-4">
-                  <article className="prose prose-sm dark:prose-invert max-w-none text-ink-800 dark:text-ink-200 whitespace-pre-wrap leading-relaxed text-[13px]">
-                    {noteContent || "Sem conteúdo"}
-                  </article>
-                </div>
-              </>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
-                <div className="w-16 h-16 rounded-2xl bg-ink-50 dark:bg-ink-800 flex items-center justify-center mb-4 text-ink-300 dark:text-ink-600">
-                  <IconLayers size={28} />
-                </div>
-                <h3 className="font-display text-sm font-semibold text-ink-700 dark:text-ink-300 mb-1">Selecione uma nota</h3>
-                <p className="text-[11px] text-ink-400 max-w-xs">Navegue pelas categorias ou use a busca.</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -407,7 +512,7 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
 
     const w = rect.width, h = rect.height;
     const cx = w / 2, cy = h / 2;
-    const PADDING = 70; // leave room for legend at bottom and header at top
+    const PADDING = 70;
 
     const cats: Record<string, any[]> = {};
     data.nodes.forEach((n) => { const c = n.category || "other"; if (!cats[c]) cats[c] = []; cats[c].push(n); });
@@ -445,7 +550,6 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
     placeHemisphere(leftCats, "left");
     placeHemisphere(rightCats, "right");
 
-    // Constrain nodes to visible area
     nodes.forEach((n) => {
       n.x = Math.max(40, Math.min(w - 40, n.x));
       n.y = Math.max(PADDING, Math.min(h - PADDING - 30, n.y));
@@ -453,7 +557,6 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
 
     nodesRef.current = nodes;
 
-    // Neural edges
     const nEdges: any[] = [];
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
@@ -495,11 +598,9 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
     const isDark = document.documentElement.classList.contains("dark");
     const BOTTOM_PAD = 55;
 
-    // BG
     ctx.fillStyle = isDark ? "#0a0a09" : "#f5f3ef";
     ctx.fillRect(0, 0, w, h);
 
-    // Hemispheric glows
     [w * 0.32, w * 0.68].forEach((gx) => {
       const g = ctx.createRadialGradient(gx, h * 0.48, 0, gx, h * 0.48, w * 0.22);
       g.addColorStop(0, isDark ? "rgba(212,165,116,0.025)" : "rgba(212,165,116,0.035)");
@@ -508,7 +609,6 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
       ctx.fillRect(0, 0, w, h);
     });
 
-    // Fissure
     ctx.beginPath();
     ctx.moveTo(w / 2, h * 0.12);
     ctx.bezierCurveTo(w / 2 - 3, h * 0.3, w / 2 + 3, h * 0.6, w / 2, h * 0.82);
@@ -516,7 +616,6 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Physics
     const nodeMap = new Map(nodes.map((n) => [n.id, n]));
     for (const n of nodes) {
       n.vx += (w / 2 - n.x) * 0.0001;
@@ -533,7 +632,6 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
 
     const isVisible = (n: any) => !activeCategory || n.category === activeCategory;
 
-    // Neural edges
     for (const e of neuralEdgesRef.current) {
       const s = nodeMap.get(e.source), tg = nodeMap.get(e.target);
       if (!s || !tg) continue;
@@ -556,7 +654,6 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
       }
     }
 
-    // Real edges
     for (const e of edgesRef.current) {
       const s = nodeMap.get(e.source), tg = nodeMap.get(e.target);
       if (!s || !tg) continue;
@@ -571,7 +668,6 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
       ctx.fillStyle = "#d4a574"; ctx.fill();
     }
 
-    // Nodes
     for (const n of nodes) {
       const vis = isVisible(n);
       const isConn = !hoveredNode || n.id === hoveredNode || neuralEdgesRef.current.some((e) =>
@@ -654,8 +750,6 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
   }, [notes, onOpenNote]);
 
   const categories = [...new Set(nodesRef.current.map((n) => n.category))];
-  const catCounts: Record<string, number> = {};
-  nodesRef.current.forEach((n) => { catCounts[n.category] = (catCounts[n.category] || 0) + 1; });
   const selectedNode = selectedBrainNode ? nodesRef.current.find((n) => n.id === selectedBrainNode) : null;
 
   return (
@@ -665,20 +759,18 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
         onMouseLeave={() => { dragRef.current = { down: false, node: null }; setHoveredNode(null); }}
         onDoubleClick={handleDoubleClick} />
 
-      {/* Back */}
       <button onClick={onBack}
         className="absolute top-4 left-4 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-white/90 dark:bg-ink-800/90 backdrop-blur-sm border border-ink-200/60 dark:border-ink-700/60 text-ink-600 dark:text-ink-300 hover:bg-white dark:hover:bg-ink-800 transition-colors flex items-center gap-1.5 shadow-sm">
         <IconArrowLeft size={13} /> Voltar
       </button>
 
-      <div className="absolute top-4 left-24 text-[10px] font-mono text-ink-400">
+      <div className="absolute top-4 left-24 text-[10px] font-mono text-ink-400 hidden sm:block">
         {data.nodes.length} nós
       </div>
-      <div className="absolute top-4 right-4 text-[10px] text-ink-400">
+      <div className="absolute top-4 right-4 text-[10px] text-ink-400 hidden sm:block">
         Clique p/ focar · Duplo clique p/ abrir
       </div>
 
-      {/* Category filter — left sidebar */}
       <div className="absolute top-14 left-4 flex flex-col gap-1">
         <button onClick={() => setActiveCategory(null)}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
@@ -697,7 +789,6 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
         ))}
       </div>
 
-      {/* Selected node */}
       {selectedNode && (
         <div className="absolute bottom-4 right-4 w-60 bg-white/95 dark:bg-ink-800/95 backdrop-blur-sm rounded-xl border border-ink-100 dark:border-ink-700 shadow-lg p-3">
           <div className="flex items-center justify-between mb-1.5">
