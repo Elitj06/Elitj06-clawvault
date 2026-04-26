@@ -701,18 +701,18 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
       const cw = rect2.width, ch = rect2.height;
       const visible = activeCategory ? nodesRef.current.filter((n: any) => n.category === activeCategory) : nodesRef.current;
       if (visible.length > 0) {
-        // Spread visible nodes in a circle
-        const cx2 = cw / 2, cy2 = (ch - 55) / 2;
-        const maxR = Math.min(cw, ch - 55) * 0.35;
+        // Spread visible nodes in a circle, accounting for top category bar
+        const cx2 = cw / 2, cy2 = ((ch - 55) / 2) + 40; // offset down for top bar
+        const maxR = Math.min(cw, ch - 55 - 40) * 0.33;
         visible.forEach((n: any, i: number) => {
           const angle = (i / visible.length) * Math.PI * 2;
           const r = maxR * (0.4 + 0.6 * Math.random());
           n.x = cx2 + Math.cos(angle) * r;
           n.y = cy2 + Math.sin(angle) * r;
           n.vx = 0; n.vy = 0;
-          // Clamp
+          // Clamp with padding
           n.x = Math.max(40, Math.min(cw - 40, n.x));
-          n.y = Math.max(40, Math.min(ch - 75, n.y));
+          n.y = Math.max(55, Math.min(ch - 75, n.y)); // 55px top for category bar
         });
       }
     }
@@ -749,12 +749,12 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
     ctx.stroke();
 
     const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-    // Breathing effect — nodes gently oscillate between expand and contract
-    const breathe = Math.sin(t * 0.4) * 0.0003; // slow, subtle breathing
+    // Breathing effect — very subtle, gentle oscillation
+    const breathe = Math.sin(t * 0.3) * 0.00006; // very slow, very subtle
     for (const n of nodes) {
       const dx = n.x - w / 2;
       const dy = n.y - (h - BOTTOM_PAD) / 2;
-      // Gentle center pull (contract) + breathing oscillation
+      // Gentle center pull + subtle breathing
       n.vx += dx * (0.00008 + breathe);
       n.vy += dy * (0.00008 + breathe);
       for (const o of nodes) {
@@ -764,7 +764,7 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
       }
       n.vx *= 0.88; n.vy *= 0.88;
       n.x = Math.max(30, Math.min(w - 30, n.x + n.vx));
-      n.y = Math.max(40, Math.min(h - BOTTOM_PAD - 20, n.y + n.vy));
+      n.y = Math.max(50, Math.min(h - BOTTOM_PAD - 20, n.y + n.vy)); // top padding for category bar
     }
 
     const isVisible = (n: any) => !activeCategory || n.category === activeCategory;
@@ -897,49 +897,46 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
         onDoubleClick={handleDoubleClick} />
 
       <button onClick={onBack}
-        className="absolute top-4 left-4 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-white/90 dark:bg-ink-800/90 backdrop-blur-sm border border-ink-200/60 dark:border-ink-700/60 text-ink-600 dark:text-ink-300 hover:bg-white dark:hover:bg-ink-800 transition-colors flex items-center gap-1.5 shadow-sm">
-        <IconArrowLeft size={13} /> Voltar
+        className="absolute top-3 left-3 px-2.5 py-1 text-[10px] font-medium rounded-md bg-[#111827]/90 backdrop-blur-sm border border-[#A78BFA]/20 text-[#A78BFA] hover:bg-[#1E1B2E] transition-colors flex items-center gap-1 z-20">
+        <IconArrowLeft size={11} /> Voltar
       </button>
 
-      <div className="absolute top-4 left-24 text-[10px] font-mono text-ink-400 hidden sm:block">
+      <div className="absolute top-3 left-20 text-[9px] font-mono text-white/30 z-20">
         {data.nodes.length} nós
       </div>
-      <div className="absolute top-4 right-4 text-[10px] text-ink-400 hidden sm:block">
-        Clique p/ focar · Duplo clique p/ abrir
-      </div>
 
-      <div className="absolute top-14 left-4 flex flex-col gap-1">
+      {/* Category filter bar — horizontal, top */}
+      <div className="absolute top-11 left-0 right-0 flex items-center gap-1.5 px-3 z-20 overflow-x-auto">
         <button onClick={() => setActiveCategory(null)}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
-            !activeCategory ? "bg-white/90 dark:bg-ink-800/90 backdrop-blur-sm text-accent-600 dark:text-accent-300 shadow-sm border border-accent-300/30" : "bg-white/60 dark:bg-ink-800/60 backdrop-blur-sm text-ink-400 hover:text-ink-600 border border-transparent"}`}>
+          className={`shrink-0 px-2 py-1 rounded-md text-[10px] font-medium transition-all border ${
+            !activeCategory ? "bg-[#A78BFA]/20 border-[#A78BFA]/30 text-[#A78BFA]" : "bg-[#111827]/80 border-transparent text-white/30 hover:text-white/60"}`}>
           Tudo
         </button>
         {categories.map((cat) => (
           <button key={cat} onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all border ${
-              activeCategory === cat ? "backdrop-blur-sm shadow-sm" : "bg-white/60 dark:bg-ink-800/60 backdrop-blur-sm text-ink-400 hover:text-ink-600 border-transparent"
-            }`}
-            style={activeCategory === cat ? { backgroundColor: hexToRgba(catColor(cat), 0.15), borderColor: hexToRgba(catColor(cat), 0.3), color: catColor(cat), boxShadow: `0 1px 3px ${hexToRgba(catColor(cat), 0.15)}` } : {}}>
-            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: catColor(cat) }} />
+            className={`shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all border ${
+              activeCategory === cat ? "shadow-sm" : "bg-[#111827]/80 border-transparent text-white/30 hover:text-white/60"}`}
+            style={activeCategory === cat ? { backgroundColor: hexToRgba(catColor(cat), 0.15), borderColor: hexToRgba(catColor(cat), 0.3), color: catColor(cat) } : {}}>
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: catColor(cat) }} />
             {cat}
           </button>
         ))}
       </div>
 
       {selectedNode && (
-        <div className="absolute bottom-4 right-4 w-60 bg-white/95 dark:bg-ink-800/95 backdrop-blur-sm rounded-xl border border-ink-100 dark:border-ink-700 shadow-lg p-3">
+        <div className="absolute bottom-4 right-4 w-56 bg-[#111827]/95 backdrop-blur-sm rounded-xl border border-[#A78BFA]/15 shadow-lg p-3 z-20">
           <div className="flex items-center justify-between mb-1.5">
-            <h3 className="text-[12px] font-semibold text-ink-900 dark:text-ink-50 truncate pr-2">{selectedNode.label}</h3>
-            <button onClick={() => setSelectedBrainNode(null)} className="text-ink-400 hover:text-ink-600 shrink-0"><IconX size={12} /></button>
+            <h3 className="text-[12px] font-semibold text-white truncate pr-2">{selectedNode.label}</h3>
+            <button onClick={() => setSelectedBrainNode(null)} className="text-white/30 hover:text-white shrink-0"><IconX size={12} /></button>
           </div>
           <div className="flex items-center gap-1.5 mb-2">
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: catColor(selectedNode.category) }} />
-            <span className="text-[9px] font-mono text-ink-400">{selectedNode.path}</span>
+            <span className="text-[9px] font-mono text-white/30">{selectedNode.path}</span>
           </div>
           <button onClick={() => {
             const note = notes.find((n) => n.path === selectedNode.path || n.path.endsWith(`/${selectedNode.id}.md`));
             if (note) onOpenNote(note);
-          }} className="w-full px-3 py-1.5 text-[11px] font-medium rounded-lg bg-accent-50 dark:bg-accent-900/20 text-accent-600 dark:text-accent-300 hover:bg-accent-100 dark:hover:bg-accent-900/30 transition-colors">
+          }} className="w-full px-3 py-1.5 text-[11px] font-medium rounded-lg bg-[#4ADE80]/10 text-[#4ADE80] hover:bg-[#4ADE80]/20 transition-colors">
             Abrir nota
           </button>
         </div>
