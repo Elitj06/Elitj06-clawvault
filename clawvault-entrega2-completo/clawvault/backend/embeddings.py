@@ -37,8 +37,9 @@ _MEMORY_CACHE_MAX = 1000
 
 def _embed_via_ollama(text: str) -> Optional[list[float]]:
     try:
-        url = f"{OLLAMA_HOST.rstrip('/')}/api/embeddings"
-        body = json.dumps({"model": OLLAMA_MODEL, "prompt": text}).encode("utf-8")
+        # Tenta novo endpoint primeiro (Ollama >= 0.20)
+        url = f"{OLLAMA_HOST.rstrip('/')}/api/embed"
+        body = json.dumps({"model": OLLAMA_MODEL, "input": text}).encode("utf-8")
         req = urllib.request.Request(
             url, data=body,
             headers={"Content-Type": "application/json"},
@@ -46,11 +47,31 @@ def _embed_via_ollama(text: str) -> Optional[list[float]]:
         )
         with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:
             data = json.loads(resp.read().decode("utf-8"))
+            # Novo formato: {"embeddings": [[...]]}
+            vecs = data.get("embeddings")
+            if vecs and isinstance(vecs[0], list) and len(vecs[0]) > 0:
+                return vecs[0]
+            # Formato antigo: {"embedding": [...]}
             vec = data.get("embedding")
             if isinstance(vec, list) and len(vec) > 0:
                 return vec
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError):
-        return None
+        # Fallback: tenta endpoint antigo
+        try:
+            url = f"{OLLAMA_HOST.rstrip('/')}/api/embeddings"
+            body = json.dumps({"model": OLLAMA_MODEL, "prompt": text}).encode("utf-8")
+            req = urllib.request.Request(
+                url, data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                vec = data.get("embedding")
+                if isinstance(vec, list) and len(vec) > 0:
+                    return vec
+        except Exception:
+            return None
     return None
 
 

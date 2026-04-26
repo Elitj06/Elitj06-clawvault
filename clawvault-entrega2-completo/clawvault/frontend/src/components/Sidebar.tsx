@@ -75,7 +75,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       )}
       <aside
         className={`
-          w-64 fixed left-0 top-0 h-screen bg-white dark:bg-ink-900 border-r border-ink-100 dark:border-ink-800 flex flex-col z-50
+          w-52 fixed left-0 top-0 h-screen bg-white dark:bg-ink-900 border-r border-ink-100 dark:border-ink-800 flex flex-col z-50
           transition-transform duration-300 ease-in-out
           lg:translate-x-0
           ${open ? "translate-x-0" : "-translate-x-full"}

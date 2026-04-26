@@ -57,6 +57,8 @@ class LLMResponse:
     # Métricas de compressão (se ativada)
     compression_saved_tokens: int = 0
     compression_level_used: Optional[str] = None
+    # Function calling — tool calls returned by the LLM
+    tool_calls: Optional[list[dict]] = None  # [{"id": "...", "name": "...", "arguments": {...}}]
 
 
 @dataclass
@@ -74,8 +76,11 @@ class LLMRequest:
     # Compressão de prompt (economia de tokens)
     compress: bool = False                # Ligar compressão automática?
     compression_level: Optional[str] = None  # "soft", "balanced", "aggressive"
-    # Modo M2M (comunicação entre agentes, sem prosa)
+    # Modo M2M (comunicação entre agentes, sem proso)
     m2m_mode: bool = False
+    # Function calling — tools to offer the LLM
+    tools: Optional[list[dict]] = None  # List of OpenAI-format tool schemas
+    tool_choice: Optional[Any] = None   # "auto" | "none" | {"type": "function", ...}
 
 
 # ==========================================================================
@@ -278,15 +283,23 @@ class OpenAIAdapter:
         if request.prompt:
             messages.append({"role": "user", "content": request.prompt})
 
-        response = client.chat.completions.create(
-            model=model.model_name,
-            messages=messages,
-            max_tokens=request.max_tokens or model.max_output,
-            temperature=request.temperature,
-        )
+        create_kwargs = {
+            "model": model.model_name,
+            "messages": messages,
+            "max_tokens": request.max_tokens or model.max_output,
+            "temperature": request.temperature,
+        }
+        if request.tools and model.supports_tools:
+            create_kwargs["tools"] = request.tools
+            if request.tool_choice:
+                create_kwargs["tool_choice"] = request.tool_choice
+
+        response = client.chat.completions.create(**create_kwargs)
 
         duration_ms = int((time.time() - start) * 1000)
-        content = response.choices[0].message.content or ""
+        choice = response.choices[0]
+        content = choice.message.content or ""
+        tool_calls = _parse_tool_calls(choice.message)
 
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
@@ -308,6 +321,7 @@ class OpenAIAdapter:
             cost_usd=cost,
             duration_ms=duration_ms,
             raw_response=response,
+            tool_calls=tool_calls,
         )
 
     def call_stream(self, model: LLMModel, request: LLMRequest):
@@ -455,15 +469,23 @@ class DeepSeekAdapter:
         if request.prompt:
             messages.append({"role": "user", "content": request.prompt})
 
-        response = client.chat.completions.create(
-            model=model.model_name,
-            messages=messages,
-            max_tokens=request.max_tokens or model.max_output,
-            temperature=request.temperature,
-        )
+        create_kwargs = {
+            "model": model.model_name,
+            "messages": messages,
+            "max_tokens": request.max_tokens or model.max_output,
+            "temperature": request.temperature,
+        }
+        if request.tools and model.supports_tools:
+            create_kwargs["tools"] = request.tools
+            if request.tool_choice:
+                create_kwargs["tool_choice"] = request.tool_choice
+
+        response = client.chat.completions.create(**create_kwargs)
 
         duration_ms = int((time.time() - start) * 1000)
-        content = response.choices[0].message.content or ""
+        choice = response.choices[0]
+        content = choice.message.content or ""
+        tool_calls = _parse_tool_calls(choice.message)
 
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
@@ -482,6 +504,7 @@ class DeepSeekAdapter:
             cost_usd=cost,
             duration_ms=duration_ms,
             raw_response=response,
+            tool_calls=tool_calls,
         )
 
 
@@ -527,20 +550,26 @@ class ZaiAdapter:
         if request.prompt:
             messages.append({"role": "user", "content": request.prompt})
 
+        create_kwargs = {
+            "model": model.model_name,
+            "messages": messages,
+            "max_tokens": request.max_tokens or model.max_output,
+            "temperature": request.temperature,
+        }
+        if request.tools and model.supports_tools:
+            create_kwargs["tools"] = request.tools
+            if request.tool_choice:
+                create_kwargs["tool_choice"] = request.tool_choice
+
         try:
-            response = client.chat.completions.create(
-                model=model.model_name,
-                messages=messages,
-                max_tokens=request.max_tokens or model.max_output,
-                temperature=request.temperature,
-            )
+            response = client.chat.completions.create(**create_kwargs)
         except Exception as e:
-            # Z.ai pode ter rate limits ou modelos temporariamente indisponíveis.
-            # Deixa a exceção subir para o roteador acionar o fallback.
             raise RuntimeError(f"Erro Z.ai ({model.id}): {e}")
 
         duration_ms = int((time.time() - start) * 1000)
-        content = response.choices[0].message.content or ""
+        choice = response.choices[0]
+        content = choice.message.content or ""
+        tool_calls = _parse_tool_calls(choice.message)
 
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
@@ -560,12 +589,29 @@ class ZaiAdapter:
             cost_usd=cost,
             duration_ms=duration_ms,
             raw_response=response,
+            tool_calls=tool_calls,
         )
 
 
 # ==========================================================================
 # ADAPTADOR GENÉRICO OPENAI-COMPATIBLE
 # ==========================================================================
+
+def _parse_tool_calls(message: Any) -> Optional[list[dict]]:
+    """Extract tool_calls from an OpenAI-compatible response message."""
+    if not hasattr(message, "tool_calls") or not message.tool_calls:
+        return None
+    calls = []
+    for tc in message.tool_calls:
+        args = tc.function.arguments
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except (json.JSONDecodeError, TypeError):
+                args = {"raw": args}
+        calls.append({"id": tc.id, "name": tc.function.name, "arguments": args})
+    return calls or None
+
 
 class OpenAICompatibleAdapter:
     """
@@ -599,6 +645,20 @@ class OpenAICompatibleAdapter:
                 )
         return self._client
 
+    def _build_create_kwargs(self, model: LLMModel, request: LLMRequest, messages: list[dict]) -> dict:
+        """Build kwargs for chat.completions.create(), including tools if present."""
+        kwargs = {
+            "model": model.model_name,
+            "messages": messages,
+            "max_tokens": request.max_tokens or model.max_output,
+            "temperature": request.temperature,
+        }
+        if request.tools and model.supports_tools:
+            kwargs["tools"] = request.tools
+            if request.tool_choice:
+                kwargs["tool_choice"] = request.tool_choice
+        return kwargs
+
     def call(self, model: LLMModel, request: LLMRequest) -> LLMResponse:
         client = self._get_client()
         start = time.time()
@@ -610,20 +670,18 @@ class OpenAICompatibleAdapter:
             messages.append({"role": "user", "content": request.prompt})
 
         try:
-            response = client.chat.completions.create(
-                model=model.model_name,
-                messages=messages,
-                max_tokens=request.max_tokens or model.max_output,
-                temperature=request.temperature,
-            )
+            create_kwargs = self._build_create_kwargs(model, request, messages)
+            response = client.chat.completions.create(**create_kwargs)
         except Exception as e:
             raise RuntimeError(f"Erro {self.provider_name} ({model.id}): {e}")
 
         duration_ms = int((time.time() - start) * 1000)
-        content = response.choices[0].message.content or ""
+        choice = response.choices[0]
+        content = choice.message.content or ""
 
-        # Alguns providers retornam o usage em formato um pouco diferente.
-        # Tentamos os campos padrão e caímos em 0 se não encontrar.
+        # Check for tool calls
+        tool_calls = _parse_tool_calls(choice.message)
+
         usage = response.usage
         input_tokens = getattr(usage, "prompt_tokens", 0) or 0
         output_tokens = getattr(usage, "completion_tokens", 0) or 0
@@ -648,6 +706,7 @@ class OpenAICompatibleAdapter:
             cost_usd=cost,
             duration_ms=duration_ms,
             raw_response=response,
+            tool_calls=tool_calls,
         )
 
 
@@ -775,18 +834,26 @@ class OpenRouterAdapter:
 
         model_name = self._normalize_model_name(model.model_name)
 
+        create_kwargs = {
+            "model": model_name,
+            "messages": messages,
+            "max_tokens": request.max_tokens or model.max_output,
+            "temperature": request.temperature,
+        }
+        if request.tools and model.supports_tools:
+            create_kwargs["tools"] = request.tools
+            if request.tool_choice:
+                create_kwargs["tool_choice"] = request.tool_choice
+
         try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                max_tokens=request.max_tokens or model.max_output,
-                temperature=request.temperature,
-            )
+            response = client.chat.completions.create(**create_kwargs)
         except Exception as e:
             raise RuntimeError(f"Erro OpenRouter ({model.id} → {model_name}): {e}")
 
         duration_ms = int((time.time() - start) * 1000)
-        content = response.choices[0].message.content or ""
+        choice = response.choices[0]
+        content = choice.message.content or ""
+        tool_calls = _parse_tool_calls(choice.message)
 
         usage = response.usage
         input_tokens = getattr(usage, "prompt_tokens", 0) or 0
@@ -806,6 +873,7 @@ class OpenRouterAdapter:
             cost_usd=cost,
             duration_ms=duration_ms,
             raw_response=response,
+            tool_calls=tool_calls,
         )
 
 

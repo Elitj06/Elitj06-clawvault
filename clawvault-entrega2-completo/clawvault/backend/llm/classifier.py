@@ -1,124 +1,90 @@
 """
-ClawVault - Classificador de Complexidade (REESCRITO)
-======================================================
+ClawVault - Classificador de Complexidade v2
+=============================================
 
-Melhorias:
-  1. Análise de entidade/projeto — detecta menções a projetos, valores, prazos
-  2. Context window scoring — nº de mensagens na conversa, temas acumulados
-  3. LLM fallback com modelo barato (prompt curto, 1-token response)
-  4. Histograma de complexidade — se últimas 5 msgs foram MEDIUM+, aumentar nível
-  5. Compatível com TaskComplexity enum existente
+Estratégia em 3 camadas:
+  1. Heurísticas rápidas (regex) — zero custo, resolve ~60% dos casos
+  2. LLM fallback com modelo free (glm-4.5-flash) — resolve ~35%
+  3. Histograma boost — ajusta para cima se contexto exige
+
+Mantém interface compatível com TaskComplexity enum.
 """
 
+import hashlib
+import logging
 import os
 import re
+import time
 from collections import deque
 from typing import Optional
 
 from backend.core.config import TaskComplexity
 
+logger = logging.getLogger(__name__)
 
 # ==========================================================================
-# KEYWORDS
+# HEURÍSTICAS RÁPIDAS (zero custo)
 # ==========================================================================
 
-TRIVIAL_KEYWORDS = [
-    "liste", "lista", "list",
-    "formate", "formatar", "format",
-    "extraia", "extrair", "extract",
-    "converta", "converter", "convert",
-    "traduza palavra", "palavra em inglês", "palavra em português",
-    "qual a capital", "qual o dia",
-    "quantas letras", "quantos caracteres",
+# Saudações → TRIVIAL (não precisa de LLM)
+GREETING_RE = re.compile(
+    r"^(oi|olá|ola|hey|hello|hi|eai|e ai|fala|beleza|blz|"
+    r"tudo bem|td bem|bom dia|boa tarde|boa noite|"
+    r"valeu|obrigad[oa]|tchau|bye|até)[\s!.,?;~]*$",
+    re.IGNORECASE,
+)
+
+# Comandos curtos / lookup simples → TRIVIAL
+TRIVIAL_PATTERNS = [
+    re.compile(r"^(sim|não|nao|ok|certo|claro|perfeito|exato|isso|correto)[\s!.,?]*$", re.I),
+    re.compile(r"^(obrigad[oa]|valeu|thanks|thx)[\s!.,?]*$", re.I),
+    re.compile(r"^(bom dia|boa tarde|boa noite)[\s!.,?]*$", re.I),
 ]
 
-GREETING_PATTERNS = [
-    r"^(oi|olá|ola|hey|hello|hi|eai|e ai|fala|beleza|blz|tudo bem|td bem|bom dia|boa tarde|boa noite)[\s!.,?]*$",
+# Keywords que determinam complexidade SEM precisar de LLM
+CRITICAL_KW = [
+    "decisão de negócio", "business decision", "investimento", "investment",
+    "contrato", "contract", "análise financeira", "analise financeira",
+    "risco legal", "auditoria", "audit", "pitch deck",
+    "código de produção", "production code", "deploy em produção",
+    "decisão estratégica", "decisao estrategica", "arquitetura de",
+    "projete a arquitetura", "design the architecture",
 ]
 
-SIMPLE_KEYWORDS = [
-    "resuma", "resumir", "summarize",
-    "o que é", "o que significa",
-    "explique rapidamente", "explain briefly",
-    "traduza", "translate",
-    "corrija gramática", "fix grammar",
-    "qual a diferença entre",
-]
-
-COMPLEX_KEYWORDS = [
-    "arquitetura", "architecture",
-    "projete", "projetar", "design",
-    "analise profundamente", "deep analysis",
-    "refatore", "refactor",
-    "debug", "depure",
-    "otimize", "optimize",
-    "estratégia", "strategy",
-    "compare as opções", "compare options",
+COMPLEX_KW = [
+    "arquitetura", "architecture", "refatore", "refactor",
+    "otimize", "optimize", "debug complexo", "analise profundamente",
+    "estratégia", "strategy", "compare as opções",
+    "vantagens e desvantagens", "prós e contras", "pros and cons",
+    "explique detalhadamente", "passo a passo", "step by step",
+    "microservices", "microsserviços", "monolito", "monolith",
+    "escalabilidade", "scalability", "sistema de pagamento",
+    "analise comparativa", "comparative analysis",
     "diferença entre", "compare",
-    "explique detalhadamente", "passo a passo",
-    "vantagens e desvantagens", "prós e contras",
+    "explique a diferença", "analise as vantagens",
 ]
 
-CRITICAL_KEYWORDS = [
-    "decisão de negócio", "business decision",
-    "investimento", "investment",
-    "investir", "invest",
-    "contrato", "contract",
-    "código de produção", "production code",
-    "auditoria", "audit",
-    "análise financeira", "analise financeira", "financial analysis",
-    "risco legal", "legal risk",
-    "pitch deck", "apresentação para investidor",
-    "risco financeiro", "riscos financeiros",
-    "decisão estratégica", "decisao estrategica",
+# Padrões de entidade (aumentam peso)
+ENTITY_RE = [
+    re.compile(r"\bR\$\s*[\d.,]+"),
+    re.compile(r"\$[\d.,]+"),
+    re.compile(r"\bUSD\s*[\d.,]+"),
+    re.compile(r"\b(prazo|deadline|entreg[ae])\b", re.I),
+    re.compile(r"\b(projeto|project|cliente|client)\b", re.I),
+    re.compile(r"\b(servidor|server|api|database|banco de dados)\b", re.I),
+    re.compile(r"\b(segurança|security|credencial|token|senha)\b", re.I),
+    re.compile(r"\b(produção|deploy|release|versão\s+\d)\b", re.I),
 ]
 
-# Entidades/projetos — menções que aumentam complexidade
-ENTITY_PATTERNS = [
-    r"\bR\$\s*[\d.,]+",             # valores em reais
-    r"\$[\d.,]+",                   # valores em dólar
-    r"\bUSD\s*[\d.,]+",             # USD
-    r"\bprazo\b",                   # prazos
-    r"\bdeadline\b",                # deadlines
-    r"\bentreg[ae]\b.*\b\d",        # entregas com datas
-    r"\bprojeto\b",                 # projetos
-    r"\bproject\b",
-    r"\bcliente\b",                 # clientes
-    r"\bclient\b",
-    r"\bequipe\b",                  # equipes
-    r"\bteam\b",
-    r"\bversão\s+\d",               # versões (v1, v2)
-    r"\brelease\b",
-    r"\bdeploy\b",
-    r"\bprodução\b",
-    r"\bserver\b|\bservidor\b",
-    r"\bapi\b",
-    r"\bdatabase\b|\bbanco de dados\b",
-    r"\bsegurança\b|\bsecurity\b",
-    r"\bcredencial\b|\btoken\b|\bsenha\b",
-]
+CODE_RE = re.compile(r"```|def |class |function |import |require\(|from \w+ import")
 
 
-def _contains_any(text: str, keywords: list[str]) -> bool:
-    text_lower = text.lower()
-    return any(kw in text_lower for kw in keywords)
-
-
-def _has_code_block(text: str) -> bool:
-    return bool(re.search(r"```|def |class |function |import |require\(", text))
+def _count_entities(text: str) -> int:
+    return sum(1 for p in ENTITY_RE if p.search(text))
 
 
 def _estimate_tokens(text: str) -> int:
     return len(text) // 4
-
-
-def _count_entities(text: str) -> int:
-    """Conta menções a entidades/projetos/valores/prazos."""
-    count = 0
-    for pattern in ENTITY_PATTERNS:
-        if re.search(pattern, text, re.IGNORECASE):
-            count += 1
-    return count
 
 
 # ==========================================================================
@@ -127,185 +93,237 @@ def _count_entities(text: str) -> int:
 
 class TaskClassifier:
     """
-    Classifica tarefas em 5 níveis com análise contextual avançada.
+    Classifica tarefas em 5 níveis.
+    
+    Fluxo:
+      1. Heurísticas regex (instantâneo, zero custo)
+      2. Se ambíguo → LLM barato (glm-4.5-flash, ~50 tokens, custo ~$0)
+      3. Histograma boost ajusta para cima se contexto é consistentemente complexo
     """
 
-    def __init__(self, use_llm_fallback: bool = False):
+    def __init__(self, use_llm_fallback: bool = True):
         self.use_llm_fallback = use_llm_fallback
-        # Histograma das últimas classificações
         self._history: deque = deque(maxlen=5)
+        # Cache de classificações (hash → resultado) — evita LLM pra mesma msg
+        self._cache: dict[str, TaskComplexity] = {}
+        self._cache_max = 200
 
-    def classify(self, prompt: str, context: Optional[str] = None,
-                 message_count: int = 0) -> TaskComplexity:
+    def classify(
+        self,
+        prompt: str,
+        context: Optional[str] = None,
+        message_count: int = 0,
+    ) -> TaskComplexity:
+        """Interface principal — mesma assinatura da versão anterior."""
         full_text = prompt + " " + (context or "")
+        prompt_stripped = prompt.strip()
 
-        # Regra 0: saudações → TRIVIAL
-        prompt_stripped = prompt.strip().lower()
-        for pattern in GREETING_PATTERNS:
-            if re.match(pattern, prompt_stripped, re.IGNORECASE):
-                self._record(TaskComplexity.TRIVIAL)
-                return TaskComplexity.TRIVIAL
+        # === CAMADA 1: Heurísticas rápidas ===
 
-        # Regra 1: keywords críticas
-        if _contains_any(full_text, CRITICAL_KEYWORDS):
-            self._record(TaskComplexity.CRITICAL)
-            return TaskComplexity.CRITICAL
+        # R0: Saudações → TRIVIAL
+        if GREETING_RE.match(prompt_stripped):
+            return self._record(TaskComplexity.TRIVIAL)
 
-        # Regra 2: keywords complexas
-        if _contains_any(full_text, COMPLEX_KEYWORDS):
+        # R0b: Respostas curtas / afirmativas → TRIVIAL
+        for pat in TRIVIAL_PATTERNS:
+            if pat.match(prompt_stripped):
+                return self._record(TaskComplexity.TRIVIAL)
+
+        # R1: Keywords críticas
+        text_lower = full_text.lower()
+        if any(kw in text_lower for kw in CRITICAL_KW):
+            return self._record(TaskComplexity.CRITICAL)
+
+        # R2: Keywords complexas
+        if any(kw in text_lower for kw in COMPLEX_KW):
             result = TaskComplexity.COMPLEX
-            # Histograma boost
             if self._history_boost():
                 result = TaskComplexity.CRITICAL
-            self._record(result)
-            return result
+            return self._record(result)
 
-        # Regra 3: análise de entidade/projeto
+        # R3: Muitas entidades = pelo menos COMPLEX
         entity_count = _count_entities(full_text)
         if entity_count >= 3:
-            self._record(TaskComplexity.COMPLEX)
-            return TaskComplexity.COMPLEX
-        elif entity_count >= 1:
-            # Entidades presentes = pelo menos MEDIUM
-            pass  # continua avaliação, mas floor = MEDIUM
+            return self._record(TaskComplexity.COMPLEX)
 
-        # Regra 4: context window scoring
+        # R4: Código = pelo menos MEDIUM
+        if CODE_RE.search(prompt):
+            return self._record(TaskComplexity.MEDIUM)
+
+        # R5: Prompt muito curto (< 20 tokens) sem keywords especiais → SIMPLE
         prompt_tokens = _estimate_tokens(prompt)
-        if message_count > 10:
-            # Conversa longa com muitos temas → tende a complexo
-            if prompt_tokens > 200:
-                self._record(TaskComplexity.COMPLEX)
-                return TaskComplexity.COMPLEX
-
-        # Regra 5: prompt muito curto
         if prompt_tokens < 20:
-            if _contains_any(prompt, TRIVIAL_KEYWORDS):
-                self._record(TaskComplexity.TRIVIAL)
-                return TaskComplexity.TRIVIAL
-            result = TaskComplexity.SIMPLE
-            self._record(result)
-            return result
+            return self._record(TaskComplexity.SIMPLE)
 
-        # Regra 6: prompt muito longo
-        if prompt_tokens > 500:
-            if _has_code_block(prompt):
-                self._record(TaskComplexity.COMPLEX)
-                return TaskComplexity.COMPLEX
-            result = TaskComplexity.MEDIUM
-            if self._history_boost():
-                result = TaskComplexity.COMPLEX
-            self._record(result)
-            return result
-
-        # Regra 7: keywords simples
-        if _contains_any(full_text, SIMPLE_KEYWORDS):
-            self._record(TaskComplexity.SIMPLE)
-            return TaskComplexity.SIMPLE
-
-        # Regra 8: código = pelo menos MEDIUM
-        if _has_code_block(prompt):
-            self._record(TaskComplexity.MEDIUM)
-            return TaskComplexity.MEDIUM
-
-        # Regra 9: entidades = pelo menos MEDIUM
+        # R6: Entidades presentes = pelo menos MEDIUM
         if entity_count >= 1:
             result = TaskComplexity.MEDIUM
             if self._history_boost():
                 result = TaskComplexity.COMPLEX
-            self._record(result)
-            return result
+            return self._record(result)
 
-        # Regra 10: histograma boost no fallback
-        if self._history_boost():
-            self._record(TaskComplexity.MEDIUM)
-            return TaskComplexity.MEDIUM
+        # R7: Prompt muito longo (> 500 tokens)
+        if prompt_tokens > 500:
+            result = TaskComplexity.MEDIUM
+            if self._history_boost():
+                result = TaskComplexity.COMPLEX
+            return self._record(result)
 
-        # LLM fallback (opcional — se ativado e heurísticas não resolveram)
+        # === CAMADA 2: LLM fallback ===
         if self.use_llm_fallback:
-            try:
-                result = self._llm_fallback(prompt)
-                if result is not None:
-                    self._record(result)
-                    return result
-            except Exception:
-                pass
+            llm_result = self._llm_classify(prompt)
+            if llm_result is not None:
+                # Histograma boost pode aumentar
+                if self._history_boost() and llm_result.value < TaskComplexity.COMPLEX.value:
+                    llm_result = TaskComplexity(llm_result.value + 1)
+                return self._record(llm_result)
 
-        # Fallback: MEDIUM
-        self._record(TaskComplexity.MEDIUM)
-        return TaskComplexity.MEDIUM
+        # Fallback seguro: MEDIUM
+        return self._record(TaskComplexity.MEDIUM)
 
-    def _record(self, complexity: TaskComplexity) -> None:
-        self._history.append(complexity.value)
-
-    def _history_boost(self) -> bool:
-        """True se últimas 5 msgs foram MEDIUM+."""
-        if len(self._history) < 3:
-            return False
-        return all(v >= TaskComplexity.MEDIUM.value for v in self._history)
-
-    def _llm_fallback(self, prompt: str) -> Optional[TaskComplexity]:
+    def _llm_classify(self, prompt: str) -> Optional[TaskComplexity]:
         """
-        Usa LLM barato (glm-4.5-air ou similar) pra classificar.
-        Prompt curto, espera resposta de 1 token (número 1-5).
+        Usa modelo gratuito (glm-4.5-flash via Z.AI ou Bigmodel) para classificar.
+        Prompt mínimo (~50 tokens input), espera 1 token de output.
         """
+        # Check cache
+        cache_key = hashlib.md5(prompt[:500].encode()).hexdigest()
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
         try:
-            from backend.llm.router import router, LLMRequest
-            response = router.route(LLMRequest(
-                prompt=f"Classifique a complexidade desta pergunta de 1 (trivial) a 5 (crítica). Responda APENAS com um número.\n\nPergunta: {prompt[:500]}",
-                complexity_hint=TaskComplexity.TRIVIAL,  # força modelo mais barato
-                temperature=0.0,
-                max_tokens=5,
-            ))
-            if response and response.content:
-                text = response.content.strip()
-                # Extrai número
+            import requests
+            
+            classification_prompt = (
+                "Classifique a complexidade desta mensagem de 1 (trivial) a 5 (crítico).\n"
+                "1=trivial/saudação, 2=simples/lookup, 3=médio/análise, "
+                "4=complexo/arquitetura, 5=crítico/decisão de negócio.\n"
+                "Responda APENAS com um número.\n\n"
+                f"Mensagem: {prompt[:300]}"
+            )
+
+            # Tenta Z.AI primeiro (free coding plan)
+            result = self._call_zai(classification_prompt)
+            if result is None:
+                # Fallback: Bigmodel
+                result = self._call_bigmodel(classification_prompt)
+            
+            if result is not None:
+                self._add_to_cache(cache_key, result)
+                return result
+
+        except Exception as e:
+            logger.debug(f"[Classifier] LLM fallback falhou: {e}")
+
+        return None
+
+    def _call_zai(self, prompt: str) -> Optional[TaskComplexity]:
+        """Chama Z.AI API para classificação rápida."""
+        try:
+            import requests
+            api_key = os.environ.get("ZAI_API_KEY", "")
+            if not api_key:
+                return None
+            
+            resp = requests.post(
+                "https://api.z.ai/api/coding/paas/v4/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "glm-4.5-flash",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 5,
+                    "temperature": 0.0,
+                },
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                text = resp.json()["choices"][0]["message"]["content"].strip()
                 match = re.search(r"[1-5]", text)
                 if match:
-                    level = int(match.group())
-                    return TaskComplexity(level)
+                    return TaskComplexity(int(match.group()))
         except Exception:
             pass
         return None
 
+    def _call_bigmodel(self, prompt: str) -> Optional[TaskComplexity]:
+        """Chama Bigmodel API para classificação rápida."""
+        try:
+            import requests
+            api_key = os.environ.get("BIGMODEL_API_KEY", "")
+            if not api_key:
+                return None
+            
+            resp = requests.post(
+                "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "glm-4.5-flash",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 5,
+                    "temperature": 0.0,
+                },
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                text = resp.json()["choices"][0]["message"]["content"].strip()
+                match = re.search(r"[1-5]", text)
+                if match:
+                    return TaskComplexity(int(match.group()))
+        except Exception:
+            pass
+        return None
+
+    def _record(self, complexity: TaskComplexity) -> TaskComplexity:
+        self._history.append(complexity.value)
+        return complexity
+
+    def _history_boost(self) -> bool:
+        """True se últimas mensagens foram consistentemente complexas."""
+        if len(self._history) < 3:
+            return False
+        return all(v >= TaskComplexity.MEDIUM.value for v in self._history)
+
+    def _add_to_cache(self, key: str, result: TaskComplexity):
+        """Adiciona ao cache com eviction."""
+        if len(self._cache) >= self._cache_max:
+            # Remove 20% mais antigo (approx FIFO)
+            keys_to_remove = list(self._cache.keys())[:self._cache_max // 5]
+            for k in keys_to_remove:
+                del self._cache[k]
+        self._cache[key] = result
+
     def classify_with_explanation(
-        self, prompt: str, context: Optional[str] = None,
+        self,
+        prompt: str,
+        context: Optional[str] = None,
         message_count: int = 0,
-    ) -> tuple[TaskComplexity, str]:
-        full_text = prompt + " " + (context or "")
-        prompt_tokens = _estimate_tokens(prompt)
-        entity_count = _count_entities(full_text)
-
-        if _contains_any(full_text, CRITICAL_KEYWORDS):
-            return TaskComplexity.CRITICAL, "Contém palavras-chave críticas"
-
-        if _contains_any(full_text, COMPLEX_KEYWORDS):
-            if self._history_boost():
-                return TaskComplexity.CRITICAL, "Keywords complexas + histograma boost"
-            return TaskComplexity.COMPLEX, "Contém palavras-chave de alta complexidade"
-
+    ) -> tuple:
+        """Retorna (complexity, explanation) — útil para debug."""
+        result = self.classify(prompt, context, message_count)
+        
+        prompt_stripped = prompt.strip()
+        if GREETING_RE.match(prompt_stripped):
+            return result, "Saudação detectada → TRIVIAL"
+        
+        text_lower = (prompt + " " + (context or "")).lower()
+        if any(kw in text_lower for kw in CRITICAL_KW):
+            return result, "Keywords críticas detectadas"
+        if any(kw in text_lower for kw in COMPLEX_KW):
+            return result, "Keywords complexas detectadas"
+        
+        entity_count = _count_entities(text_lower)
         if entity_count >= 3:
-            return TaskComplexity.COMPLEX, f"{entity_count} entidades/projetos detectados"
-
-        if prompt_tokens < 20:
-            if _contains_any(prompt, TRIVIAL_KEYWORDS):
-                return TaskComplexity.TRIVIAL, f"Prompt curto ({prompt_tokens}t) + keywords triviais"
-            return TaskComplexity.SIMPLE, f"Prompt curto ({prompt_tokens}t)"
-
-        if prompt_tokens > 500:
-            if _has_code_block(prompt):
-                return TaskComplexity.COMPLEX, "Prompt longo com código"
-            return TaskComplexity.MEDIUM, f"Prompt longo ({prompt_tokens}t)"
-
-        if _contains_any(full_text, SIMPLE_KEYWORDS):
-            return TaskComplexity.SIMPLE, "Keywords de baixa complexidade"
-
-        if _has_code_block(prompt):
-            return TaskComplexity.MEDIUM, "Contém código"
-
-        if entity_count >= 1:
-            return TaskComplexity.MEDIUM, f"{entity_count} entidade(s) detectada(s)"
-
-        return TaskComplexity.MEDIUM, "Fallback padrão"
+            return result, f"{entity_count} entidades detectadas → COMPLEX"
+        if CODE_RE.search(prompt):
+            return result, "Código detectado → MEDIUM+"
+        
+        return result, "Classificado via heurísticas/LLM fallback"
 
 
 # Instância global

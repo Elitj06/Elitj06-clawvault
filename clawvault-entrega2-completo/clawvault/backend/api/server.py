@@ -39,12 +39,15 @@ try:
 except ImportError:
     pass
 
-from backend.core.config import MODELS_CATALOG, APP_CONFIG, API_KEYS, VAULT_DIR
+from backend.core.config import MODELS_CATALOG, APP_CONFIG, API_KEYS, VAULT_DIR, TaskComplexity
 from backend.core.database import db, get_monthly_spend
 from backend.llm.router import router, LLMRequest
 from backend.llm.classifier import classifier
 from backend.memory.manager import memory
 from backend.memory.vault import vault
+# Import tools — auto-registers in registry via __init_subclass__
+import backend.tools.builtins  # noqa: F401
+from backend.tools.registry import registry as tool_registry
 from backend.memory.multi_agent import (
     AgentRegistry, get_agent_memory, shared_bus,
     ensure_multi_agent_schema,
@@ -366,11 +369,22 @@ async def chat(req: ChatRequest):
     except Exception:
         pass
 
-    # System prompt combinando agente + memória
-    agent_info = AgentRegistry.get(req.agent_name)
-    base_prompt = (
-        (agent_info.get("system_prompt") if agent_info else "")
-        or """Você é o ClawVault, assistente pessoal do Eliandro Tjader (Tjader).
+    # === CLASSIFICAÇÃO DE COMPLEXIDADE (antes do system prompt) ===
+    complexity = classifier.classify(
+        req.message,
+        context=vault_context[:500] if vault_context else None,
+        message_count=len(context_messages),
+    )
+
+    # === SYSTEM PROMPT ADAPTATIVO ===
+    # Monta system prompt conforme nível de complexidade
+    # TRIVIAL/SIMPLE → mínimo (~30 tokens)
+    # MEDIUM → base + vault
+    # COMPLEX/CRITICAL → completo com fatos + agente + instruções
+
+    PROMPT_MINIMAL = "Você é o ClawVault, assistente do Eliandro. Responda em PT-BR. Direto e útil."
+
+    PROMPT_BASE = """Você é o ClawVault, assistente pessoal do Eliandro Tjader (Tjader).
 
 REGRAS DE MEMÓRIA E APRENDIZADO:
 - Você TEM memória persistente. Use-a para lembrar de conversas anteriores.
@@ -392,40 +406,134 @@ COMPORTAMENTO:
 - Registre informações importantes automaticamente
 - Use [[wiki-links]] para conectar conhecimentos relacionados
 - Quando não souber algo, diga que vai pesquisar ou peça mais contexto"""
-    )
 
-    # P8 — Marcadores de cache section
-    system_prompt = f"<!-- CACHE_SECTION:base -->{base_prompt}"
-    if agent_context:
-        system_prompt += f"\n\n<!-- CACHE_SECTION:agent -->{agent_context}"
+    agent_info = AgentRegistry.get(req.agent_name)
+    custom_prompt = (agent_info or {}).get("system_prompt", "")
 
-    # P1 — Injeta fatos extraídos
-    facts_section = ""
-    if _P1_ENABLED:
-        try:
-            facts = get_facts_for_context(query=req.message, limit=8)
-            if facts:
-                facts_section = format_facts_for_prompt(facts)
-        except Exception:
-            pass
-    if facts_section:
-        system_prompt += f"\n\n<!-- CACHE_SECTION:memory -->{facts_section}"
+    if complexity.value <= TaskComplexity.SIMPLE.value:
+        # TRIVIAL ou SIMPLE → prompt mínimo, zero overhead
+        base_prompt = custom_prompt if custom_prompt else PROMPT_MINIMAL
+        system_prompt = f"<!-- CACHE_SECTION:base -->{base_prompt}"
 
-    # Adiciona contexto do vault
-    system_prompt += vault_context
+    elif complexity.value <= TaskComplexity.MEDIUM.value:
+        # MEDIUM → prompt base + vault context
+        base_prompt = custom_prompt if custom_prompt else PROMPT_BASE
+        system_prompt = f"<!-- CACHE_SECTION:base -->{base_prompt}"
+        if vault_context:
+            system_prompt += vault_context
 
-    # Chama o LLM
+    else:
+        # COMPLEX ou CRITICAL → prompt completo com tudo
+        base_prompt = custom_prompt if custom_prompt else PROMPT_BASE
+        system_prompt = f"<!-- CACHE_SECTION:base -->{base_prompt}"
+
+        if agent_context:
+            system_prompt += f"\n\n<!-- CACHE_SECTION:agent -->{agent_context}"
+
+        # P1 — Injeta fatos extraídos
+        facts_section = ""
+        if _P1_ENABLED:
+            try:
+                facts = get_facts_for_context(query=req.message, limit=8)
+                if facts:
+                    facts_section = format_facts_for_prompt(facts)
+            except Exception:
+                pass
+        if facts_section:
+            system_prompt += f"\n\n<!-- CACHE_SECTION:memory -->{facts_section}"
+
+        if vault_context:
+            system_prompt += vault_context
+
+    # Mount available tool schemas
+    tools_schemas = tool_registry.schemas()
+
+    # Chama o LLM (passa complexidade já classificada pra evitar reclassificação)
     llm_req = LLMRequest(
         prompt=effective_input,
         system=system_prompt,
         messages=context_messages,
         model_override=req.model_override,
         conversation_id=conv_id,
+        complexity_hint=complexity,
+        tools=tools_schemas,
+        tool_choice="auto" if tools_schemas else None,
     )
-    response = router.route(llm_req)
 
-    if response.error:
-        raise HTTPException(status_code=500, detail=response.error)
+    # === AGENTIC TOOL LOOP ===
+    max_iterations = 5
+    for iteration in range(max_iterations):
+        response = router.route(llm_req)
+
+        if response.error:
+            raise HTTPException(status_code=500, detail=response.error)
+
+        # No tool calls — done, return as before
+        if not response.tool_calls:
+            break
+
+        # Execute tool calls and continue the loop
+        import logging as _logging
+        _logger = _logging.getLogger("clawvault.tools")
+        _logger.info(f"[Agent Loop] Iteration {iteration + 1}: {len(response.tool_calls)} tool call(s)")
+
+        # Append assistant message with tool_calls to messages
+        loop_messages = list(llm_req.messages or [])
+        if llm_req.system:
+            loop_messages = [{"role": "system", "content": llm_req.system}] + loop_messages
+        if iteration == 0 and llm_req.prompt:
+            loop_messages.append({"role": "user", "content": llm_req.prompt})
+
+        # Build assistant message with tool_calls
+        assistant_tool_calls = []
+        for tc in response.tool_calls:
+            assistant_tool_calls.append({
+                "id": tc["id"],
+                "type": "function",
+                "function": {"name": tc["name"], "arguments": _json.dumps(tc["arguments"], ensure_ascii=False)},
+            })
+
+        loop_messages.append({
+            "role": "assistant",
+            "content": response.content or None,
+            "tool_calls": assistant_tool_calls,
+        })
+
+        # Execute each tool and add tool results
+        for tc in response.tool_calls:
+            result = tool_registry.dispatch(tc["name"], tc["arguments"])
+            _logger.info(f"[Agent Loop] Tool {tc['name']} → {len(result)} chars")
+            loop_messages.append({
+                "role": "tool",
+                "tool_call_id": tc["id"],
+                "content": result,
+            })
+
+        # Prepare next iteration — no system/prompt needed (already in messages)
+        llm_req = LLMRequest(
+            prompt=None,
+            system=None,
+            messages=loop_messages,
+            model_override=req.model_override,
+            conversation_id=conv_id,
+            complexity_hint=complexity,
+            tools=tools_schemas,
+            tool_choice="auto" if tools_schemas else None,
+        )
+    else:
+        # Max iterations reached — get one final response without tools
+        response = router.route(LLMRequest(
+            prompt=None,
+            system=None,
+            messages=llm_req.messages,
+            model_override=req.model_override,
+            conversation_id=conv_id,
+            complexity_hint=complexity,
+        ))
+        if response.error:
+            raise HTTPException(status_code=500, detail=response.error)
+
+    # response now holds the final text response
 
     # Salva mensagens
     memory.add_message(
@@ -1003,24 +1111,72 @@ def read_note(note_path: str):
     return {"path": note_path, "content": content, "size": len(content)}
 
 
+@app.delete("/api/vault/notes/{note_path:path}")
+def delete_note(note_path: str):
+    """Remove uma nota do vault."""
+    full_path = VAULT_DIR / note_path
+    if not full_path.exists() or not full_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Nota não encontrada: {note_path}")
+    try:
+        full_path.resolve().relative_to(VAULT_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    full_path.unlink()
+    return {"status": "deleted", "path": note_path}
+
+
 @app.get("/api/vault/graph")
 def vault_graph():
     """Retorna o grafo de conhecimento (para D3/Recharts)."""
-    graph = vault.build_graph()
+    import glob as _glob
 
-    # Converte para formato de grafo visual (nodes + edges)
+    # Scan all .md files and build nodes with proper metadata
     nodes = []
-    edges = []
-    seen = set()
+    node_map = {}
+    seen_ids = set()
 
+    for filepath in sorted(_glob.glob(str(VAULT_DIR / "**" / "*.md"), recursive=True)):
+        rel = os.path.relpath(filepath, str(VAULT_DIR))
+        stem = Path(filepath).stem
+
+        # Extract category from path
+        parts = rel.split(os.sep)
+        if len(parts) >= 3:
+            category = parts[1]  # eventos, projetos, conceitos, pessoas, drafts
+        elif len(parts) >= 2:
+            category = parts[0]  # 10_wiki, 00_raw, 99_index
+        else:
+            category = "other"
+
+        # Human-friendly label
+        label = stem
+        if label.startswith("openclaw-"):
+            label = label.replace("openclaw-", "")
+        elif label.startswith("2026-"):
+            # Extract meaningful part after the date prefix
+            match = __import__("re").match(r"\d{4}-\d{2}-\d{2}[_-](.+)", label)
+            if match:
+                label = match.group(1).replace("-", " ")[:40]
+        elif label.startswith("openclaw-"):
+            label = label.replace("openclaw-", "")
+
+        node_id = stem
+        if node_id not in seen_ids:
+            node = {
+                "id": node_id,
+                "label": label,
+                "path": rel,
+                "category": category,
+            }
+            nodes.append(node)
+            node_map[node_id] = node
+            seen_ids.add(node_id)
+
+    # Build edges from vault graph (entity links)
+    graph = vault.build_graph()
+    edges = []
     for source, links in graph.items():
-        if source not in seen:
-            nodes.append({"id": source, "label": source})
-            seen.add(source)
         for target in links:
-            if target not in seen:
-                nodes.append({"id": target, "label": target})
-                seen.add(target)
             edges.append({"source": source, "target": target})
 
     return {"nodes": nodes, "edges": edges}

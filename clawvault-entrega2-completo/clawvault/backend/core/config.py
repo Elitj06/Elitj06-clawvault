@@ -909,27 +909,27 @@ ROUTING_RULES = {
         "groq-llama-3.1-8b",          # quase-free — ultra rápido
     ],
     TaskComplexity.SIMPLE: [
-        "zai-glm-5.1",                # free (z.ai coding plan) — capaz, 200k ctx
-        "glm-4.7-flash",              # free (z.ai) — bom custo-benefício
+        "zai-glm-5.1",                # paid (z.ai coding plan) — capaz, 200k ctx
+        "glm-4.7-flash",              # paid (z.ai coding plan) — bom custo-benefício
         "groq-llama-3.3-70b",         # quase-free (groq)
         "or-llama-3.3-70b-free",      # free (openrouter) — backup
     ],
     TaskComplexity.MEDIUM: [
-        "zai-glm-5.1",                # free (z.ai) — orquestração, raciocínio
+        "zai-glm-5.1",                # paid (z.ai coding plan) — orquestração, raciocínio
         "groq-kimi-k2",               # pago leve (groq) — 16k output, capaz
         "groq-qwen3-32b",             # quase-free (groq)
-        "glm-4.7-flash",              # free (z.ai)
+        "glm-4.7-flash",              # paid (z.ai coding plan)
         "or-grok-4-fast",             # pago (openrouter) — backup robusto
     ],
     TaskComplexity.COMPLEX: [
-        "zai-glm-5.1",                # free (z.ai) — primário para complexos
+        "zai-glm-5.1",                # paid (z.ai coding plan) — primário para complexos
         "groq-kimi-k2",               # pago leve — 16k output, bom raciocínio
         "groq-gpt-oss-120b",          # quase-free — modelo grande, 131k ctx
         "groq-qwen3-32b",             # quase-free — backup
         "or-grok-4-fast",             # pago (openrouter) — último recurso
     ],
     TaskComplexity.CRITICAL: [
-        "zai-glm-5.1",                # free (z.ai) — melhor disponível sem Anthropic
+        "zai-glm-5.1",                # paid (z.ai coding plan) — melhor disponível sem Anthropic
         "groq-kimi-k2",               # pago leve — raciocínio profundo
         "groq-gpt-oss-120b",          # quase-free — 120B params
         "or-grok-4-fast",             # pago (openrouter) — fallback premium

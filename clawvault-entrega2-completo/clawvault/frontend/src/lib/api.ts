@@ -108,10 +108,12 @@ export const api = {
   shareMemory: (data: { namespace: string; key: string; content: string; source_agent?: string }) =>
     request<{ status: string }>("/shared-memory", { method: "POST", body: JSON.stringify(data) }),
   vaultStatus: () => request<Record<string, any>>("/vault/status"),
-  vaultSearch: (q: string) =>
-    request<{ results: any[] }>(`/vault/search?q=${encodeURIComponent(q)}`),
+  vaultSearch: (q: string, limit = 200) =>
+    request<{ results: any[] }>(`/vault/search?q=${encodeURIComponent(q)}&limit=${limit}`),
   vaultReadNote: (path: string) =>
     request<{ path: string; content: string; size: number }>(`/vault/notes/${encodeURIComponent(path)}`),
+  vaultDeleteNote: (path: string) =>
+    request<{ status: string; path: string }>(`/vault/notes/${encodeURIComponent(path)}`, { method: "DELETE" }),
   vaultGraph: () => request<{ nodes: VaultNode[]; edges: VaultEdge[] }>("/vault/graph"),
   vaultEntities: () => request<Record<string, string[]>>("/vault/entities"),
   saveNote: (data: { title: string; content: string; layer?: string; category?: string; tags?: string[] }) =>
