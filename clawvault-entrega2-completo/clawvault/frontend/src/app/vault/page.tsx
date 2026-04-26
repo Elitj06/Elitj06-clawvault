@@ -28,9 +28,10 @@ import {
 interface VaultLayer {
   key: string;
   label: string;
+  icon?: string;
   count: number;
   path: string;
-  children?: { key: string; label: string; count: number; path: string }[];
+  children?: { key: string; label: string; icon?: string; count: number; path: string }[];
 }
 
 interface NoteItem {
@@ -65,15 +66,29 @@ function IconList({ size = 14 }: { size?: number }) { return <List size={size} /
 
 // ─── Colors ──────────────────────────────────────────────────────
 
+// Cyber-minimalist palette (Obsidian Purple + Neon Green)
+const CV_PURPLE = "#A78BFA";
+const CV_GREEN = "#4ADE80";
+const CV_DARK = "#111827";
+
 const CAT_COLORS: Record<string, string> = {
-  projetos: "#d4a574",
-  conceitos: "#5a7ea4",
-  eventos: "#6b8e5a",
-  pessoas: "#b54a3c",
-  empresas: "#c99e45",
-  drafts: "#9b7cb8",
-  index: "#82807a",
-  other: "#82807a",
+  inbox: CV_GREEN,
+  projects: CV_PURPLE,
+  areas: CV_PURPLE,
+  resources: CV_GREEN,
+  archive: CV_PURPLE,
+  atlas: CV_GREEN,
+  scripts: CV_GREEN,
+  // Legacy mappings
+  projetos: CV_PURPLE,
+  conceitos: "#818CF8",
+  eventos: "#C084FC",
+  pessoas: "#A78BFA",
+  empresas: "#8B5CF6",
+  drafts: "#6D28D9",
+  index: "#6B7280",
+  fatos: CV_GREEN,
+  other: "#6B7280",
 };
 
 function catColor(cat: string): string {
@@ -101,12 +116,93 @@ function fmtDate(path: string): string {
   return `${d}/${mo}/${y}`;
 }
 
+// Custom cyber-minimalist SVG icons for vault layers
+function CvInbox({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 8l4-4h8l4 4" stroke={CV_GREEN} strokeWidth="1.5" />
+      <path d="M2 8v10a2 2 0 002 2h16a2 2 0 002-2V8" stroke={CV_PURPLE} strokeWidth="1.5" />
+      <path d="M12 8v8M8 12l4 4 4-4" stroke={CV_GREEN} strokeWidth="1.5" />
+    </svg>
+  );
+}
+function CvProjects({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" stroke={CV_PURPLE} strokeWidth="1.5" />
+      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke={CV_PURPLE} strokeWidth="1.5" />
+      <path d="M13 2l1 2" stroke={CV_GREEN} strokeWidth="2" />
+    </svg>
+  );
+}
+function CvAreas({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" stroke={CV_PURPLE} strokeWidth="1.5" />
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96" stroke={CV_PURPLE} strokeWidth="1.5" />
+      <line x1="12" y1="22.08" x2="12" y2="12" stroke={CV_PURPLE} strokeWidth="1.5" />
+      <circle cx="6" cy="6" r="1.5" fill={CV_GREEN} />
+      <circle cx="18" cy="6" r="1.5" fill={CV_GREEN} />
+      <circle cx="12" cy="18" r="1.5" fill={CV_GREEN} />
+    </svg>
+  );
+}
+function CvResources({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" stroke={CV_PURPLE} strokeWidth="1.5" />
+      <path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" stroke={CV_PURPLE} strokeWidth="1.5" />
+      <path d="M18 3v2" stroke={CV_GREEN} strokeWidth="2" />
+    </svg>
+  );
+}
+function CvArchive({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 8v13H3V8" stroke={CV_PURPLE} strokeWidth="1.5" />
+      <path d="M1 3h22v5H1z" stroke={CV_PURPLE} strokeWidth="1.5" />
+      <path d="M10 12h4" stroke={CV_PURPLE} strokeWidth="1.5" />
+      <rect x="15" y="13" width="5" height="4" rx="1" stroke={CV_GREEN} strokeWidth="1" fill="none" />
+      <circle cx="17.5" cy="15" r="0.75" fill={CV_GREEN} />
+    </svg>
+  );
+}
+function CvAtlas({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="6" cy="6" r="2" stroke={CV_GREEN} strokeWidth="1.5" />
+      <circle cx="18" cy="6" r="2" stroke={CV_GREEN} strokeWidth="1.5" />
+      <circle cx="12" cy="12" r="2" stroke={CV_GREEN} strokeWidth="1.5" />
+      <circle cx="6" cy="18" r="2" stroke={CV_GREEN} strokeWidth="1.5" />
+      <circle cx="18" cy="18" r="2" stroke={CV_GREEN} strokeWidth="1.5" />
+      <line x1="7.5" y1="7" x2="10.5" y2="11" stroke={CV_PURPLE} strokeWidth="1" />
+      <line x1="13.5" y1="11" x2="16.5" y2="7" stroke={CV_PURPLE} strokeWidth="1" />
+      <line x1="7.5" y1="17" x2="10.5" y2="13" stroke={CV_PURPLE} strokeWidth="1" />
+      <line x1="13.5" y1="13" x2="16.5" y2="17" stroke={CV_PURPLE} strokeWidth="1" />
+    </svg>
+  );
+}
+function CvScripts({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="4 17 10 11 4 5" stroke={CV_GREEN} strokeWidth="1.5" />
+      <line x1="12" y1="19" x2="20" y2="19" stroke={CV_GREEN} strokeWidth="1.5" />
+      <circle cx="18" cy="6" r="1" fill={CV_PURPLE} />
+      <circle cx="20" cy="9" r="0.8" fill={CV_PURPLE} />
+      <circle cx="16" cy="4" r="0.6" fill={CV_PURPLE} />
+    </svg>
+  );
+}
+
 function catIcon(cat: string, size = 14) {
   switch (cat) {
-    case "projetos": return <IconProjects size={size} />;
-    case "conceitos": return <IconConcepts size={size} />;
-    case "eventos": return <IconEvents size={size} />;
-    case "pessoas": return <IconPeople size={size} />;
+    case "inbox": return <CvInbox size={size} />;
+    case "projects": case "projetos": return <CvProjects size={size} />;
+    case "areas": return <CvAreas size={size} />;
+    case "resources": case "conceitos": return <CvResources size={size} />;
+    case "archive": case "eventos": return <CvArchive size={size} />;
+    case "atlas": case "index": return <CvAtlas size={size} />;
+    case "scripts": return <CvScripts size={size} />;
     default: return <IconFile size={size} />;
   }
 }
@@ -133,19 +229,22 @@ export default function VaultPage() {
     api.vaultStatus().then((data) => {
       const parsed: VaultLayer[] = [
         {
-          key: "10_wiki", label: "Base de Conhecimento",
+          key: "00_inbox", label: "Inbox — Entrada", icon: "inbox",
+          count: data.raw?.count || 0, path: "00_raw",
+        },
+        {
+          key: "10_wiki", label: "Base de Conhecimento", icon: "resources",
           count: data.wiki?.count || 0, path: "10_wiki",
           children: [
-            { key: "wiki_projects", label: "Projetos", count: data.wiki_projects?.count || 0, path: "10_wiki/projetos" },
-            { key: "wiki_concepts", label: "Conceitos", count: data.wiki_concepts?.count || 0, path: "10_wiki/conceitos" },
-            { key: "wiki_events", label: "Eventos", count: data.wiki_events?.count || 0, path: "10_wiki/eventos" },
-            { key: "wiki_people", label: "Pessoas", count: data.wiki_people?.count || 0, path: "10_wiki/pessoas" },
+            { key: "wiki_projects", label: "Projetos", icon: "projects", count: data.wiki_projects?.count || 0, path: "10_wiki/projetos" },
+            { key: "wiki_concepts", label: "Conceitos", icon: "resources", count: data.wiki_concepts?.count || 0, path: "10_wiki/conceitos" },
+            { key: "wiki_events", label: "Eventos", icon: "archive", count: data.wiki_events?.count || 0, path: "10_wiki/eventos" },
+            { key: "wiki_people", label: "Pessoas", icon: "areas", count: data.wiki_people?.count || 0, path: "10_wiki/pessoas" },
           ],
         },
-        { key: "00_raw", label: "Dados brutos", count: data.raw?.count || 0, path: "00_raw" },
-        { key: "20_output", label: "Outputs", count: data.output?.count || 0, path: "20_output" },
-        { key: "30_agents", label: "Agentes", count: data.agents?.count || 0, path: "30_agents" },
-        { key: "99_index", label: "Índices", count: data.index?.count || 0, path: "99_index" },
+        { key: "20_output", label: "Outputs — Produção", icon: "areas", count: data.output?.count || 0, path: "20_output" },
+        { key: "30_agents", label: "Scripts & Agentes", icon: "scripts", count: data.agents?.count || 0, path: "30_agents" },
+        { key: "99_index", label: "Atlas — Mapa Mental", icon: "atlas", count: data.index?.count || 0, path: "99_index" },
       ].filter((l) => l.count > 0 || l.children);
       setLayers(parsed);
     });
@@ -231,19 +330,19 @@ export default function VaultPage() {
   return (
     <div className="h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] flex flex-col animate-fade-in">
       {/* Header */}
-      <div className="px-4 lg:px-5 py-3 border-b border-ink-100 dark:border-ink-800 flex items-center justify-between shrink-0 bg-white dark:bg-ink-950">
+      <div className="px-4 lg:px-5 py-3 border-b border-[#1E1B2E] flex items-center justify-between shrink-0 bg-[#111827]">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-accent-50 dark:bg-accent-900/20 flex items-center justify-center text-accent-500">
+          <div className="w-8 h-8 rounded-lg bg-[#A78BFA]/10 flex items-center justify-center text-[#A78BFA]">
             <IconVault size={17} />
           </div>
           <div>
-            <h1 className="font-display text-sm font-bold text-ink-900 dark:text-ink-50">Vault</h1>
-            <p className="text-[10px] text-ink-400 font-mono">{notes.length} notas</p>
+            <h1 className="font-display text-sm font-bold text-white">Vault</h1>
+            <p className="text-[10px] text-[#4ADE80]/60 font-mono">{notes.length} notas</p>
           </div>
         </div>
         {viewMode === "browse" && (
           <button onClick={loadGraph}
-            className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-accent-50 dark:bg-accent-900/20 text-accent-600 dark:text-accent-300 hover:bg-accent-100 dark:hover:bg-accent-900/30 transition-colors flex items-center gap-1.5">
+            className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-[#4ADE80]/10 text-[#4ADE80] hover:bg-[#4ADE80]/20 transition-colors flex items-center gap-1.5">
             <IconBrain size={13} /> <span className="hidden sm:inline">Cérebro</span>
           </button>
         )}
@@ -260,30 +359,30 @@ export default function VaultPage() {
           {/* Note detail (mobile) */}
           {mobilePanel === "detail" && selectedNote && (
             <div className="flex-1 flex flex-col min-w-0 md:hidden">
-              <div className="px-4 py-2.5 border-b border-ink-100 dark:border-ink-800 shrink-0">
+              <div className="px-4 py-2.5 border-b border-[#1E1B2E] shrink-0 bg-[#111827]">
                 <div className="flex items-center gap-3">
-                  <button onClick={() => { setMobilePanel("list"); }} className="text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 shrink-0"><IconArrowLeft size={18} /></button>
+                  <button onClick={() => { setMobilePanel("list"); }} className="text-[#A78BFA] hover:text-white shrink-0"><IconArrowLeft size={18} /></button>
                   <div className="min-w-0 flex-1">
-                    <h2 className="text-[13px] font-semibold text-ink-900 dark:text-ink-50 truncate">{noteTitle(selectedNote)}</h2>
-                    <p className="text-[9px] font-mono text-ink-400 mt-0.5 truncate">{selectedNote.path}</p>
+                    <h2 className="text-[13px] font-semibold text-white truncate">{noteTitle(selectedNote)}</h2>
+                    <p className="text-[9px] font-mono text-[#A78BFA]/60 mt-0.5 truncate">{selectedNote.path}</p>
                   </div>
                 </div>
                 {deleteConfirm === selectedNote.path ? (
-                  <div className="flex items-center justify-between mt-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/30">
-                    <span className="text-[11px] text-red-600 dark:text-red-400">Apagar esta nota?</span>
+                  <div className="flex items-center justify-between mt-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                    <span className="text-[11px] text-red-400">Apagar esta nota?</span>
                     <div className="flex items-center gap-1.5">
                       <button onClick={() => deleteNote(selectedNote.path)} className="px-3 py-1 text-[10px] font-semibold rounded-md bg-red-500 text-white hover:bg-red-600">Apagar</button>
-                      <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1 text-[10px] font-medium rounded-md bg-white dark:bg-ink-700 text-ink-600 dark:text-ink-300 border border-ink-200 dark:border-ink-600">Cancelar</button>
+                      <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1 text-[10px] font-medium rounded-md bg-white/10 text-white/60 border border-white/10">Cancelar</button>
                     </div>
                   </div>
                 ) : (
-                  <button onClick={() => setDeleteConfirm(selectedNote.path)} className="mt-1.5 text-[10px] text-ink-400 hover:text-red-500 transition-colors flex items-center gap-1">
+                  <button onClick={() => setDeleteConfirm(selectedNote.path)} className="mt-1.5 text-[10px] text-white/30 hover:text-red-400 transition-colors flex items-center gap-1">
                     <IconTrash size={10} /> Excluir nota
                   </button>
                 )}
               </div>
-              <div className="flex-1 overflow-y-auto px-4 py-4">
-                <article className="prose prose-sm dark:prose-invert max-w-none text-ink-800 dark:text-ink-200 whitespace-pre-wrap leading-relaxed text-[13px]">
+              <div className="flex-1 overflow-y-auto px-4 py-4 bg-[#0D0B14]">
+                <article className="prose prose-sm prose-invert max-w-none text-white/80 whitespace-pre-wrap leading-relaxed text-[13px]">
                   {noteContent || "Sem conteúdo"}
                 </article>
               </div>
@@ -294,54 +393,55 @@ export default function VaultPage() {
           {(mobilePanel === "list" || !selectedNote) && (
             <div className="flex-1 flex flex-col min-h-0 md:hidden">
               {/* Search bar */}
-              <div className="p-3 border-b border-ink-100 dark:border-ink-800 shrink-0">
+              <div className="p-3 border-b border-[#1E1B2E] shrink-0">
                 <div className="relative">
-                  <span className="absolute left-2.5 top-2 text-ink-400"><IconSearch size={13} /></span>
+                  <span className="absolute left-2.5 top-2 text-[#A78BFA]"><IconSearch size={13} /></span>
                   <input type="text" value={searchQuery} onChange={(e) => search(e.target.value)}
                     placeholder="Buscar no vault..."
-                    className="w-full pl-7 pr-7 py-2 text-[12px] border border-ink-200 dark:border-ink-700 rounded-lg bg-white dark:bg-ink-800 text-ink-900 dark:text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-300/40 placeholder:text-ink-400" />
+                    className="w-full pl-7 pr-7 py-2 text-[12px] border border-[#A78BFA]/20 rounded-lg bg-[#111827] text-white placeholder:text-[#A78BFA]/40 focus:outline-none focus:ring-2 focus:ring-[#A78BFA]/30" />
                   {searchQuery && (
                     <button onClick={() => { setSearchQuery(""); setFilteredNotes(activeLayer ? notes.filter((n) => n.path.includes(activeLayer)) : notes); }}
-                      className="absolute right-2 top-1.5 text-ink-400 hover:text-ink-600"><IconX size={12} /></button>
+                      className="absolute right-2 top-1.5 text-[#A78BFA]/40 hover:text-white"><IconX size={12} /></button>
                   )}
                 </div>
-                {/* Category chips (horizontal scroll) */}
+                {/* Category chips */}
                 <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 -mx-1 px-1">
                   <button onClick={() => { setActiveLayer(null); setSearchQuery(""); setFilteredNotes(notes); }}
-                    className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors ${
-                      !activeLayer ? "bg-accent-500 text-white" : "bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400"}`}>
+                    className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
+                      !activeLayer ? "bg-[#A78BFA] text-white shadow-[0_0_8px_rgba(167,139,250,0.3)]" : "bg-[#1E1B2E] text-[#A78BFA]/60 border border-[#A78BFA]/10"}`}>
                     Todas ({notes.length})
                   </button>
                   {layers.map((layer) => layer.count > 0 && (
                     <button key={layer.key} onClick={() => { if (!layer.children) filterByLayer(layer.path); else toggleLayer(layer.key); }}
-                      className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors flex items-center gap-1 ${
-                        activeLayer === layer.path ? "bg-accent-500 text-white" : "bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400"}`}>
-                      <IconFolder size={10} />
-                      {layer.label}
+                      className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-medium transition-all flex items-center gap-1 ${
+                        activeLayer === layer.path ? "bg-[#4ADE80] text-[#111827]" : "bg-[#1E1B2E] text-white/50 border border-[#A78BFA]/10"}`}>
+                      {catIcon(layer.icon || layer.key, 10)}
+                      <span className="hidden sm:inline">{layer.label.split(" — ")[0]}</span>
+                      <span className="sm:hidden">{layer.label.split(" — ")[0].slice(0, 3)}</span>
                       <span className="font-mono text-[9px] opacity-70">{layer.count}</span>
                     </button>
                   ))}
                 </div>
               </div>
               {/* Notes list */}
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto bg-[#0D0B14]">
                 {loading ? (
-                  <div className="flex items-center justify-center py-12"><div className="w-4 h-4 border-2 border-ink-200 border-t-accent-400 rounded-full animate-spin" /></div>
+                  <div className="flex items-center justify-center py-12"><div className="w-4 h-4 border-2 border-[#A78BFA]/20 border-t-[#4ADE80] rounded-full animate-spin" /></div>
                 ) : filteredNotes.length === 0 ? (
-                  <div className="px-4 py-12 text-center text-[12px] text-ink-400">Nenhuma nota</div>
+                  <div className="px-4 py-12 text-center text-[12px] text-[#A78BFA]/40">Nenhuma nota</div>
                 ) : filteredNotes.map((note, i) => (
                   <button key={i} onClick={() => openNote(note)}
-                    className={`w-full text-left px-4 py-3 border-b border-ink-50 dark:border-ink-800/50 transition-colors active:bg-ink-50 dark:active:bg-ink-800/50 ${
-                      selectedNote?.path === note.path ? "bg-accent-50 dark:bg-accent-900/15" : ""}`}>
+                    className={`w-full text-left px-4 py-3 border-b border-[#1E1B2E]/50 transition-colors active:bg-[#A78BFA]/5 ${
+                      selectedNote?.path === note.path ? "bg-[#A78BFA]/10 border-l-2 border-l-[#4ADE80]" : "border-l-2 border-l-transparent"}`}>
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: catColor(note.path.split("/")[1] || "other") }} />
-                      <span className="text-[13px] font-medium text-ink-800 dark:text-ink-200 truncate flex-1">
+                      <span className="text-[13px] font-medium text-white/90 truncate flex-1">
                         {noteTitle(note)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-1 ml-4">
-                      <span className="text-[10px] font-mono text-ink-400 truncate">{note.path.split("/")[1] || ""}</span>
-                      {fmtDate(note.path) && <span className="text-[10px] text-ink-300 ml-auto">{fmtDate(note.path)}</span>}
+                      <span className="text-[10px] font-mono text-[#A78BFA]/40 truncate">{note.path.split("/")[1] || ""}</span>
+                      {fmtDate(note.path) && <span className="text-[10px] text-[#4ADE80]/40 ml-auto">{fmtDate(note.path)}</span>}
                     </div>
                   </button>
                 ))}
@@ -352,45 +452,45 @@ export default function VaultPage() {
           {/* ==================== DESKTOP: 3-panel view ==================== */}
           <div className="hidden md:flex flex-1 min-h-0">
             {/* Sidebar */}
-            <div className="w-44 border-r border-ink-100 dark:border-ink-800 flex flex-col shrink-0 bg-white/30 dark:bg-ink-950/50">
+            <div className="w-44 border-r border-[#1E1B2E] flex flex-col shrink-0 bg-[#111827]/80">
               <div className="p-3">
                 <div className="relative">
-                  <span className="absolute left-2.5 top-2 text-ink-400"><IconSearch size={13} /></span>
+                  <span className="absolute left-2.5 top-2 text-[#A78BFA]/60"><IconSearch size={13} /></span>
                   <input type="text" value={searchQuery} onChange={(e) => search(e.target.value)}
                     placeholder="Buscar no vault..."
-                    className="w-full pl-7 pr-7 py-1.5 text-[11px] border border-ink-200 dark:border-ink-700 rounded-lg bg-white dark:bg-ink-800 text-ink-900 dark:text-ink-100 focus:outline-none focus:ring-2 focus:ring-accent-300/40 placeholder:text-ink-400" />
+                    className="w-full pl-7 pr-7 py-1.5 text-[11px] border border-[#A78BFA]/15 rounded-lg bg-[#0D0B14] text-white focus:outline-none focus:ring-2 focus:ring-[#A78BFA]/30 placeholder:text-[#A78BFA]/30" />
                   {searchQuery && (
                     <button onClick={() => { setSearchQuery(""); setFilteredNotes(activeLayer ? notes.filter((n) => n.path.includes(activeLayer)) : notes); }}
-                      className="absolute right-2 top-1.5 text-ink-400 hover:text-ink-600"><IconX size={10} /></button>
+                      className="absolute right-2 top-1.5 text-[#A78BFA]/40 hover:text-white"><IconX size={10} /></button>
                   )}
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto px-2 pb-3">
                 <button onClick={() => { setActiveLayer(null); setSearchQuery(""); setFilteredNotes(notes); }}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-[11px] font-medium transition-colors mb-0.5 flex items-center gap-2 ${
-                    !activeLayer ? "bg-accent-50 dark:bg-accent-900/20 text-accent-600 dark:text-accent-300" : "text-ink-500 hover:bg-ink-50 dark:hover:bg-ink-800"}`}>
+                  className={`w-full text-left px-3 py-2 rounded-lg text-[11px] font-medium transition-all mb-0.5 flex items-center gap-2 ${
+                    !activeLayer ? "bg-[#A78BFA]/15 text-[#A78BFA]" : "text-white/40 hover:bg-[#A78BFA]/5"}`}>
                   <IconGrid size={13} /> Todas ({notes.length})
                 </button>
                 {layers.map((layer) => layer.count > 0 && (
                   <div key={layer.key}>
                     <button onClick={() => { if (layer.children) toggleLayer(layer.key); else filterByLayer(layer.path); }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] transition-colors ${
-                        activeLayer === layer.path ? "bg-accent-50 dark:bg-accent-900/20 text-accent-600 dark:text-accent-300" : "text-ink-600 dark:text-ink-400 hover:bg-ink-50 dark:hover:bg-ink-800"}`}>
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] transition-all ${
+                        activeLayer === layer.path ? "bg-[#A78BFA]/15 text-[#A78BFA]" : "text-white/50 hover:bg-[#A78BFA]/5"}`}>
                       {layer.children ? (expandedLayers.has(layer.key) ? <IconChevronDown /> : <IconChevronRight />) : <span className="w-3" />}
-                      <IconFolder size={13} />
-                      <span className="flex-1 truncate">{layer.label}</span>
-                      <span className="font-mono text-[10px] text-ink-400">{layer.count}</span>
+                      {catIcon(layer.icon || layer.key, 13)}
+                      <span className="flex-1 truncate">{layer.label.split(" — ")[0]}</span>
+                      <span className="font-mono text-[10px] text-[#4ADE80]/50">{layer.count}</span>
                     </button>
                     {expandedLayers.has(layer.key) && layer.children && (
                       <div className="ml-5">
                         {layer.children.filter((c) => c.count > 0).map((child) => (
                           <button key={child.key} onClick={() => filterByLayer(child.path)}
-                            className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] transition-colors ${
-                              activeLayer === child.path ? "bg-accent-50 dark:bg-accent-900/20 text-accent-600 dark:text-accent-300" : "text-ink-500 hover:bg-ink-50 dark:hover:bg-ink-800"}`}>
-                            {catIcon(child.key.split("_")[1])}
-                            <span className="flex-1 truncate">{child.label}</span>
-                            <span className="font-mono text-[10px] text-ink-400">{child.count}</span>
-                          </button>
+                            className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] transition-all ${
+                              activeLayer === child.path ? "bg-[#4ADE80]/10 text-[#4ADE80]" : "text-white/30 hover:bg-[#A78BFA]/5"}`}>
+                                {catIcon(child.icon || child.key.split("_")[1])}
+                                <span className="flex-1 truncate">{child.label}</span>
+                                <span className="font-mono text-[10px] text-[#4ADE80]/40">{child.count}</span>
+                              </button>
                         ))}
                       </div>
                     )}
@@ -400,34 +500,34 @@ export default function VaultPage() {
             </div>
 
             {/* Note list */}
-            <div className="w-64 border-r border-ink-100 dark:border-ink-800 flex flex-col shrink-0">
-              <div className="px-4 py-2.5 border-b border-ink-100 dark:border-ink-800 shrink-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
+            <div className="w-64 border-r border-[#1E1B2E] flex flex-col shrink-0 bg-[#111827]">
+              <div className="px-4 py-2.5 border-b border-[#1E1B2E] shrink-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#A78BFA]/40">
                   {searchQuery ? `Resultados (${filteredNotes.length})` : activeLayer ? `Filtrado (${filteredNotes.length})` : `Notas (${filteredNotes.length})`}
                 </p>
               </div>
               <div className="flex-1 overflow-y-auto">
                 {loading ? (
-                  <div className="flex items-center justify-center py-12"><div className="w-4 h-4 border-2 border-ink-200 border-t-accent-400 rounded-full animate-spin" /></div>
+                  <div className="flex items-center justify-center py-12"><div className="w-4 h-4 border-2 border-[#A78BFA]/20 border-t-[#4ADE80] rounded-full animate-spin" /></div>
                 ) : filteredNotes.length === 0 ? (
-                  <div className="px-4 py-12 text-center text-[11px] text-ink-400">Nenhuma nota</div>
+                  <div className="px-4 py-12 text-center text-[11px] text-[#A78BFA]/30">Nenhuma nota</div>
                 ) : filteredNotes.map((note, i) => (
                   <button key={i} onClick={() => openNote(note)}
-                    className={`w-full text-left px-4 py-2.5 border-b border-ink-50 dark:border-ink-800/50 transition-colors group ${
-                      selectedNote?.path === note.path ? "bg-accent-50 dark:bg-accent-900/15 border-l-2 border-l-accent-400" : "hover:bg-ink-50 dark:hover:bg-ink-800/50 border-l-2 border-l-transparent"}`}>
+                    className={`w-full text-left px-4 py-2.5 border-b border-[#1E1B2E]/30 transition-all group ${
+                      selectedNote?.path === note.path ? "bg-[#A78BFA]/10 border-l-2 border-l-[#4ADE80]" : "hover:bg-[#A78BFA]/5 border-l-2 border-l-transparent"}`}>
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: catColor(note.path.split("/")[1] || "other") }} />
-                      <span className="text-[12px] font-medium text-ink-800 dark:text-ink-200 truncate flex-1">
+                      <span className="text-[12px] font-medium text-white/80 truncate flex-1">
                         {noteTitle(note)}
                       </span>
                       <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(note.path); }}
-                        className="opacity-0 group-hover:opacity-100 text-ink-300 hover:text-red-500 transition-all p-0.5">
+                        className="opacity-0 group-hover:opacity-100 text-white/20 hover:text-red-400 transition-all p-0.5">
                         <IconTrash size={11} />
                       </button>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 ml-4">
-                      <span className="text-[9px] font-mono text-ink-400 truncate">{note.path.split("/")[1] || ""}</span>
-                      {fmtDate(note.path) && <span className="text-[9px] text-ink-300 ml-auto">{fmtDate(note.path)}</span>}
+                      <span className="text-[9px] font-mono text-[#A78BFA]/30 truncate">{note.path.split("/")[1] || ""}</span>
+                      {fmtDate(note.path) && <span className="text-[9px] text-[#4ADE80]/30 ml-auto">{fmtDate(note.path)}</span>}
                     </div>
                   </button>
                 ))}
@@ -435,44 +535,44 @@ export default function VaultPage() {
             </div>
 
             {/* Note content */}
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 bg-[#0D0B14]">
               {selectedNote ? (
                 <>
-                  <div className="px-5 py-2.5 border-b border-ink-100 dark:border-ink-800 shrink-0">
+                  <div className="px-5 py-2.5 border-b border-[#1E1B2E] shrink-0">
                     <div className="flex items-center gap-3">
-                      <button onClick={() => setSelectedNote(null)} className="text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 shrink-0"><IconArrowLeft size={15} /></button>
+                      <button onClick={() => setSelectedNote(null)} className="text-[#A78BFA]/40 hover:text-[#A78BFA] shrink-0"><IconArrowLeft size={15} /></button>
                       <div className="min-w-0 flex-1">
-                        <h2 className="text-[12px] font-semibold text-ink-900 dark:text-ink-50 truncate">{noteTitle(selectedNote)}</h2>
-                        <p className="text-[9px] font-mono text-ink-400 mt-0.5 truncate">{selectedNote.path}</p>
+                        <h2 className="text-[12px] font-semibold text-white truncate">{noteTitle(selectedNote)}</h2>
+                        <p className="text-[9px] font-mono text-[#A78BFA]/40 mt-0.5 truncate">{selectedNote.path}</p>
                       </div>
                     </div>
                     {deleteConfirm === selectedNote.path ? (
-                      <div className="flex items-center justify-between mt-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/30">
-                        <span className="text-[11px] text-red-600 dark:text-red-400">Apagar esta nota?</span>
+                      <div className="flex items-center justify-between mt-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                        <span className="text-[11px] text-red-400">Apagar esta nota?</span>
                         <div className="flex items-center gap-1.5">
                           <button onClick={() => deleteNote(selectedNote.path)} className="px-3 py-1 text-[10px] font-semibold rounded-md bg-red-500 text-white hover:bg-red-600">Apagar</button>
-                          <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1 text-[10px] font-medium rounded-md bg-white dark:bg-ink-700 text-ink-600 dark:text-ink-300 border border-ink-200 dark:border-ink-600">Cancelar</button>
+                          <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1 text-[10px] font-medium rounded-md bg-white/10 text-white/60 border border-white/10">Cancelar</button>
                         </div>
                       </div>
                     ) : (
-                      <button onClick={() => setDeleteConfirm(selectedNote.path)} className="mt-1.5 text-[10px] text-ink-400 hover:text-red-500 transition-colors flex items-center gap-1">
+                      <button onClick={() => setDeleteConfirm(selectedNote.path)} className="mt-1.5 text-[10px] text-white/20 hover:text-red-400 transition-colors flex items-center gap-1">
                         <IconTrash size={10} /> Excluir nota
                       </button>
                     )}
                   </div>
                   <div className="flex-1 overflow-y-auto px-5 py-4">
-                    <article className="prose prose-sm dark:prose-invert max-w-none text-ink-800 dark:text-ink-200 whitespace-pre-wrap leading-relaxed text-[13px]">
+                    <article className="prose prose-sm prose-invert max-w-none text-white/80 whitespace-pre-wrap leading-relaxed text-[13px]">
                       {noteContent || "Sem conteúdo"}
                     </article>
                   </div>
                 </>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
-                  <div className="w-16 h-16 rounded-2xl bg-ink-50 dark:bg-ink-800 flex items-center justify-center mb-4 text-ink-300 dark:text-ink-600">
-                    <IconLayers size={28} />
+                  <div className="w-16 h-16 rounded-2xl bg-[#1E1B2E] flex items-center justify-center mb-4">
+                    <CvAtlas size={28} />
                   </div>
-                  <h3 className="font-display text-sm font-semibold text-ink-700 dark:text-ink-300 mb-1">Selecione uma nota</h3>
-                  <p className="text-[11px] text-ink-400 max-w-xs">Navegue pelas categorias ou use a busca.</p>
+                  <h3 className="font-display text-sm font-semibold text-white/60 mb-1">Selecione uma nota</h3>
+                  <p className="text-[11px] text-[#A78BFA]/40 max-w-xs">Navegue pelas categorias ou use a busca.</p>
                 </div>
               )}
             </div>
