@@ -904,36 +904,35 @@ MODELS_CATALOG: dict[str, LLMModel] = {
 
 ROUTING_RULES = {
     TaskComplexity.TRIVIAL: [
-        "bigmodel-glm-4.5-air",      # free (bigmodel) — respostas rápidas
+        "bigmodel-glm-4.5-air",      # free — respostas rápidas, baixa complexidade
         "glm-4.5-flash",              # free (z.ai flash)
-        "groq-llama-3.1-8b",          # quase-free (groq) — ultra rápido
+        "groq-llama-3.1-8b",          # quase-free — ultra rápido
     ],
     TaskComplexity.SIMPLE: [
-        "bigmodel-glm-4.5-air",      # free (bigmodel)
-        "glm-4.7-flash",              # free (z.ai) — mais capaz
+        "zai-glm-5.1",                # free (z.ai coding plan) — capaz, 200k ctx
+        "glm-4.7-flash",              # free (z.ai) — bom custo-benefício
         "groq-llama-3.3-70b",         # quase-free (groq)
-        "or-llama-3.3-70b-free",       # free (openrouter) — backup
+        "or-llama-3.3-70b-free",      # free (openrouter) — backup
     ],
     TaskComplexity.MEDIUM: [
-        "groq-llama-3.3-70b",          # quase-free (groq) — estável
-        "bigmodel-glm-4.5-air",       # free (bigmodel)
-        "glm-4.7-flash",               # free (z.ai)
-        "groq-qwen3-32b",              # quase-free (groq) — mais capaz
-        "or-mistral-small-3.1-free",   # free (openrouter) — backup
+        "zai-glm-5.1",                # free (z.ai) — orquestração, raciocínio
+        "groq-kimi-k2",               # pago leve (groq) — 16k output, capaz
+        "groq-qwen3-32b",             # quase-free (groq)
+        "glm-4.7-flash",              # free (z.ai)
+        "or-grok-4-fast",             # pago (openrouter) — backup robusto
     ],
     TaskComplexity.COMPLEX: [
-        "groq-qwen3-32b",              # quase-free (groq) — mais capaz
-        "groq-llama-3.3-70b",          # quase-free (groq) — estável
-        "bigmodel-glm-4.5-air",       # free (bigmodel)
-        "glm-4.7-flash",               # free (z.ai)
-        "or-gemma-3-27b-free",         # free (openrouter) — backup
+        "zai-glm-5.1",                # free (z.ai) — primário para complexos
+        "groq-kimi-k2",               # pago leve — 16k output, bom raciocínio
+        "groq-gpt-oss-120b",          # quase-free — modelo grande, 131k ctx
+        "groq-qwen3-32b",             # quase-free — backup
+        "or-grok-4-fast",             # pago (openrouter) — último recurso
     ],
     TaskComplexity.CRITICAL: [
-        "groq-qwen3-32b",              # quase-free (groq)
-        "groq-llama-3.3-70b",          # quase-free (groq)
-        "bigmodel-glm-4.5-air",       # free (bigmodel)
-        "zai-glm-5.1",                 # coding plan (z.ai) — reserva
-        "or-grok-4-fast",              # pago (openrouter) — último recurso
+        "zai-glm-5.1",                # free (z.ai) — melhor disponível sem Anthropic
+        "groq-kimi-k2",               # pago leve — raciocínio profundo
+        "groq-gpt-oss-120b",          # quase-free — 120B params
+        "or-grok-4-fast",             # pago (openrouter) — fallback premium
     ],
 }
 

@@ -56,6 +56,51 @@ from backend.slash_commands import (
     execute_slash_command,
     list_commands,
 )
+# P1 - Fact extractor
+from backend.fact_extractor import (
+    extractor as fact_extractor,
+    get_facts_for_context,
+    format_facts_for_prompt,
+    deprecate_fact,
+    deprecate_facts_about,
+    stats as facts_stats,
+)
+from backend.background import worker as bg_worker, should_extract_facts
+# P2 - Semantic search
+from backend.embeddings import embed, health_check as embeddings_health
+from backend.search import (
+    semantic_search,
+    hybrid_search,
+    cache_lookup,
+    cache_store,
+    index_note,
+    reindex_all,
+    index_stats,
+)
+
+# P1 — Fact extraction
+try:
+    from backend.fact_extractor import (
+        FactExtractor, get_facts_for_context, format_facts_for_prompt,
+        ensure_facts_schema, stats as facts_stats, deprecate_fact,
+    )
+    from backend.background import BackgroundWorker, should_extract_facts
+    bg_worker = BackgroundWorker()
+    _P1_ENABLED = True
+except ImportError:
+    _P1_ENABLED = False
+    bg_worker = None
+
+# P2 — Semantic search / embeddings
+try:
+    from backend.search import (
+        semantic_search, hybrid_search, cache_lookup, cache_store,
+        index_note, reindex_all, index_stats,
+    )
+    from backend.embeddings import health_check as embeddings_health
+    _P2_ENABLED = True
+except ImportError:
+    _P2_ENABLED = False
 
 
 # ==========================================================================
@@ -69,6 +114,11 @@ async def lifespan(app: FastAPI):
     db.initialize()
     ensure_multi_agent_schema()
 
+    # P1 — Facts schema + background worker
+    if _P1_ENABLED:
+        ensure_facts_schema()
+        bg_worker.start()
+
     # Registra agente principal se não existir
     if not AgentRegistry.get("main"):
         AgentRegistry.register(
@@ -80,6 +130,8 @@ async def lifespan(app: FastAPI):
     print("🐾 ClawVault API rodando em http://localhost:8000")
     print("📚 Docs em http://localhost:8000/docs")
     yield
+    if _P1_ENABLED and bg_worker:
+        bg_worker.stop()
     print("👋 Servidor encerrado.")
 
 
@@ -247,6 +299,31 @@ async def chat(req: ChatRequest):
                 compression_savings=0,
             )
 
+    # === SEMANTIC CACHE LOOKUP (P2) ===
+    # Antes de chamar LLM, procura resposta cacheada para pergunta similar
+    if _P2_ENABLED:
+        cached = cache_lookup(req.message)
+        if cached:
+            conv_id = req.conversation_id or memory.create_conversation(
+                agent_name=req.agent_name
+            )
+            memory.add_message(conv_id, "user", req.message)
+            memory.add_message(
+                conv_id, "assistant", cached["response"],
+                model_used=cached["model_id"] + "-cached",
+            )
+            return ChatResponse(
+                content=cached["response"],
+                model_id=cached["model_id"] + "-cached",
+                provider="semantic-cache",
+                input_tokens=0,
+                output_tokens=0,
+                cost_usd=0.0,
+                complexity="CACHED",
+                conversation_id=conv_id,
+                compression_savings=0,
+            )
+
     # === fluxo normal ===
     # Cria ou usa conversa existente
     conv_id = req.conversation_id
@@ -291,7 +368,7 @@ async def chat(req: ChatRequest):
 
     # System prompt combinando agente + memória
     agent_info = AgentRegistry.get(req.agent_name)
-    system_prompt = (
+    base_prompt = (
         (agent_info.get("system_prompt") if agent_info else "")
         or """Você é o ClawVault, assistente pessoal do Eliandro Tjader (Tjader).
 
@@ -316,8 +393,23 @@ COMPORTAMENTO:
 - Use [[wiki-links]] para conectar conhecimentos relacionados
 - Quando não souber algo, diga que vai pesquisar ou peça mais contexto"""
     )
+
+    # P8 — Marcadores de cache section
+    system_prompt = f"<!-- CACHE_SECTION:base -->{base_prompt}"
     if agent_context:
-        system_prompt += f"\n\n{agent_context}"
+        system_prompt += f"\n\n<!-- CACHE_SECTION:agent -->{agent_context}"
+
+    # P1 — Injeta fatos extraídos
+    facts_section = ""
+    if _P1_ENABLED:
+        try:
+            facts = get_facts_for_context(query=req.message, limit=8)
+            if facts:
+                facts_section = format_facts_for_prompt(facts)
+        except Exception:
+            pass
+    if facts_section:
+        system_prompt += f"\n\n<!-- CACHE_SECTION:memory -->{facts_section}"
 
     # Adiciona contexto do vault
     system_prompt += vault_context
@@ -346,6 +438,10 @@ COMPORTAMENTO:
         output_tokens=response.output_tokens,
         cost_usd=response.cost_usd,
     )
+
+    # P1 — Agenda extração de fatos em background
+    if _P1_ENABLED and should_extract_facts(conv_id):
+        bg_worker.enqueue_fact_extraction(conv_id)
 
     # 🧠 Auto-aprendizado: detecta e salva informações importantes no vault
     try:
@@ -461,6 +557,75 @@ async def chat_stream(req: ChatRequest):
                 conversation_id=conv_id,
             )
 
+            # Tenta streaming real via route_stream
+            if hasattr(router, 'route_stream'):
+                import threading
+                import queue as _queue
+
+                q = _queue.Queue()
+                full_content = []
+
+                def _stream_thread():
+                    try:
+                        for chunk in router.route_stream(llm_req):
+                            q.put(chunk)
+                    except Exception as e:
+                        q.put({"type": "error", "error": str(e)})
+                    finally:
+                        q.put(None)  # sentinel
+
+                t = threading.Thread(target=_stream_thread, daemon=True)
+                t.start()
+
+                model_id = None
+                provider = None
+                usage_info = {}
+
+                while True:
+                    item = await asyncio.get_event_loop().run_in_executor(None, q.get)
+                    if item is None:
+                        break
+
+                    if item["type"] == "delta":
+                        full_content.append(item.get("text", ""))
+                        yield _sse_event("delta", {"text": item.get("text", "")})
+                    elif item["type"] == "done":
+                        usage_info = item.get("usage", {})
+                        model_id = item.get("model_id")
+                        provider = item.get("provider")
+                    elif item["type"] == "error":
+                        yield _sse_event("error", {"error": item.get("error", "unknown")})
+                        return
+
+                # Emit meta after first deltas or use fallback
+                if not model_id:
+                    model_id = "unknown"
+
+                yield _sse_event("meta", {
+                    "conversation_id": conv_id,
+                    "model": model_id,
+                    "provider": provider or "unknown",
+                })
+
+                content_str = "".join(full_content)
+                memory.add_message(conv_id, "user", req.message,
+                                   input_tokens=usage_info.get("input_tokens", 0))
+                memory.add_message(conv_id, "assistant", content_str,
+                                   model_used=model_id,
+                                   output_tokens=usage_info.get("output_tokens", 0),
+                                   cost_usd=usage_info.get("cost_usd", 0))
+
+                # P1 — background fact extraction
+                if _P1_ENABLED and should_extract_facts(conv_id):
+                    bg_worker.enqueue_fact_extraction(conv_id)
+
+                yield _sse_event("done", {
+                    **usage_info,
+                    "compression_savings": compression_saved,
+                })
+                return
+
+            # Fallback: fake streaming
             response = router.route(llm_req)
 
             if response.error:
@@ -494,6 +659,9 @@ async def chat_stream(req: ChatRequest):
                 output_tokens=response.output_tokens,
                 cost_usd=response.cost_usd,
             )
+
+            if _P1_ENABLED and should_extract_facts(conv_id):
+                bg_worker.enqueue_fact_extraction(conv_id)
 
             yield _sse_event("done", {
                 "input_tokens": response.input_tokens,
@@ -582,8 +750,18 @@ async def websocket_chat(websocket: WebSocket):
 Você TEM memória persistente. Quando aprender algo importante, salve no vault via POST /api/vault/notes.
 Acumule conhecimento. Nunca dig que não tem memória. Responda em português brasileiro. Seja direto e útil."""
             )
+            # P8 — cache markers
+            system_prompt = f"<!-- CACHE_SECTION:base -->{system_prompt}"
             if agent_context:
-                system_prompt += f"\n\n{agent_context}"
+                system_prompt += f"\n\n<!-- CACHE_SECTION:agent -->{agent_context}"
+            # P1 facts injection
+            if _P1_ENABLED:
+                try:
+                    facts = get_facts_for_context(query=msg, limit=8)
+                    if facts:
+                        system_prompt += f"\n\n<!-- CACHE_SECTION:memory -->{format_facts_for_prompt(facts)}"
+                except Exception:
+                    pass
 
             # Chama LLM
             llm_req = LLMRequest(
@@ -945,6 +1123,121 @@ def usage_daily(days: int = 30):
         (f"-{days}",),
     )
     return {"daily": rows, "days": days}
+
+
+# ==========================================================================
+# ROTAS: P1 — FACTS (Extração de Fatos)
+# ==========================================================================
+
+@app.get("/api/facts")
+def list_facts(entity: Optional[str] = None, limit: int = 50):
+    """Lista fatos extraídos."""
+    if not _P1_ENABLED:
+        raise HTTPException(501, "P1 (facts) não disponível")
+    if entity:
+        rows = db.fetch_all(
+            "SELECT * FROM facts WHERE entity = ? ORDER BY created_at DESC LIMIT ?",
+            (entity, limit),
+        )
+    else:
+        rows = db.fetch_all(
+            "SELECT * FROM facts ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        )
+    return {"facts": rows}
+
+
+@app.get("/api/facts/stats")
+def get_facts_stats():
+    """Estatísticas de fatos."""
+    if not _P1_ENABLED:
+        raise HTTPException(501, "P1 (facts) não disponível")
+    return facts_stats()
+
+
+@app.post("/api/facts/extract/{conv_id}")
+def trigger_fact_extraction(conv_id: int):
+    """Dispara extração de fatos para uma conversa."""
+    if not _P1_ENABLED:
+        raise HTTPException(501, "P1 (facts) não disponível")
+    bg_worker.enqueue_fact_extraction(conv_id)
+    return {"status": "enqueued", "conversation_id": conv_id}
+
+
+@app.delete("/api/facts/{fact_id}")
+def delete_fact(fact_id: int):
+    """Deprecate um fato."""
+    if not _P1_ENABLED:
+        raise HTTPException(501, "P1 (facts) não disponível")
+    ok = deprecate_fact(fact_id)
+    if not ok:
+        raise HTTPException(404, "Fato não encontrado")
+    return {"status": "deprecated", "fact_id": fact_id}
+
+
+@app.get("/api/worker/stats")
+def get_worker_stats():
+    """Estatísticas do background worker."""
+    if not _P1_ENABLED:
+        raise HTTPException(501, "Worker não disponível")
+    return bg_worker.stats()
+
+
+# ==========================================================================
+# ROTAS: P2 — SEMANTIC SEARCH / EMBEDDINGS
+# ==========================================================================
+
+@app.post("/api/embeddings/reindex")
+def trigger_reindex():
+    """Dispara reindexação completa do vault."""
+    if not _P2_ENABLED:
+        raise HTTPException(501, "P2 (embeddings) não disponível")
+    result = reindex_all()
+    return result
+
+
+@app.get("/api/embeddings/stats")
+def get_embeddings_stats():
+    """Estatísticas de embeddings."""
+    if not _P2_ENABLED:
+        raise HTTPException(501, "P2 (embeddings) não disponível")
+    return index_stats()
+
+
+@app.get("/api/embeddings/health")
+def get_embeddings_health():
+    """Health check dos embeddings."""
+    if not _P2_ENABLED:
+        raise HTTPException(501, "P2 (embeddings) não disponível")
+    return embeddings_health()
+
+
+@app.delete("/api/cache/clear")
+def clear_semantic_cache(older_than_days: Optional[int] = None):
+    """Limpa cache semântico."""
+    if not _P2_ENABLED:
+        raise HTTPException(501, "P2 (cache) não disponível")
+    from backend.search import cache_clear
+    removed = cache_clear(older_than_days)
+    return {"removed": removed}
+
+
+# Modifica /api/vault/search para aceitar mode
+_original_vault_search = vault_search
+
+@app.get("/api/vault/search")  # type: ignore[misc]
+def vault_search_enhanced(q: str, layer: Optional[str] = None, limit: int = 10, mode: str = "keyword"):
+    """Busca notas no vault — suporta keyword, semantic e hybrid."""
+    if mode == "keyword" or not _P2_ENABLED:
+        return {"results": vault.search(q, layer=layer, limit=limit)}
+    elif mode == "semantic":
+        results = semantic_search(q, limit=limit)
+        return {"results": results, "mode": "semantic"}
+    elif mode == "hybrid":
+        results = hybrid_search(q, limit=limit)
+        return {"results": results, "mode": "hybrid"}
+    else:
+        raise HTTPException(400, f"Modo inválido: {mode}. Use: keyword, semantic, hybrid")
 
 
 # ==========================================================================

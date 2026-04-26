@@ -1,7 +1,5 @@
 {
-  "README": [
-    "entre"
-  ],
+  "README": [],
   "index": [],
   "openclaw-2026-04-07": [],
   "openclaw-2026-04-10": [],
@@ -29,8 +27,11 @@
   "2026-04-25_Conhecimento-Compare-as-arquiteturas-de-microsserviços-e-serverless-em-3": [],
   "2026-04-25_Conhecimento-vc-na-web-o-rpeço-do-btc-agora": [],
   "2026-04-25_Conhecimento-esta-uma-bosta-o-seu-funcionameento": [],
+  "2026-04-25_Conhecimento-errou-de-novo-pq-não-está-usando-uma-ia-mais-capaz": [],
+  "2026-04-25_Conhecimento-a-analise-está-errada-o-preço-do-btc-hj-não-é-esse-use-uma": [],
   "2026-04-25_Conhecimento-vc-esta-dando-respostas-erradas-não-consultou-de-fato-o-pre": [],
   "2026-04-25_Conhecimento-O-que-é-IA": [],
+  "2026-04-25_Conhecimento-peça-para-fazer-uma-analise-do-mercado-de-btc-hj-e-me-de-pro": [],
   "2026-04-25_Conhecimento-Analise-risco-financeiro-de-investir-50k-em-IA": [],
   "2026-04-25_Valor-Analise-risco-financeiro-de-investir-50k-em-IA": [],
   "2026-04-25_Valor-veja-o-peço-do-btc-agora-na-binance": [],
@@ -39,10 +40,12 @@
   "2026-04-25_Regra-Oi-quem-é-você": [],
   "openclaw-learnings-LEARNINGS": [],
   "openclaw-learnings-ERRORS": [],
+  "2026-04-25_Valor-a-analise-está-errada-o-preço-do-btc-hj-não-é-esse-use-uma-llm-mais-capaz": [],
   "openclaw-memory-geral": [],
   "2026-04-25_Valor-esta-errado-vc-chutou-a-resposta": [],
   "2026-04-25_Valor-qual-a-cotação-do-btc-agora": [],
   "2026-04-25_Valor-continua-errado-c-consegue-navegar-pela-web": [],
+  "2026-04-25_Valor-peça-para-fazer-uma-analise-do-mercado-de-btc-hj-e-me-de-projeções-de-preç": [],
   "2026-04-25_Regra-Oi-quem-é-você-1": [],
   "openclaw-learnings-FEATURE_REQUESTS": [],
   "openclaw-clawvault-state": [],

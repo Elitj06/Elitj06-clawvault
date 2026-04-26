@@ -101,14 +101,20 @@ class AnthropicAdapter:
                 )
         return self._client
 
+    # Marcadores explícitos para cache sections (P8 fix)
+    _CACHE_MARKERS = {
+        "base": "<!-- CACHE_SECTION:base -->",
+        "agent": "<!-- CACHE_SECTION:agent -->",
+        "memory": "<!-- CACHE_SECTION:memory -->",
+    }
+
     def _split_system_for_caching(self, system: str) -> list:
         """
-        Divide o system prompt em até 3 breakpoints cacheáveis com TTLs apropriados.
+        Divide o system prompt em até 3 breakpoints cacheáveis.
 
-        Estratégia (do mais estável → mais dinâmico):
-          1. Base (~tudo até a primeira quebra dupla) — TTL 1h
-          2. Agente (entre primeira e segunda quebra) — TTL 1h
-          3. Memória/contexto (resto) — TTL 5min (ephemeral default)
+        CORREÇÃO: usa marcadores explícitos ao invés de split("\n\n", 2).
+        Seções: base (agent system_prompt) + agent_context + memory/context.
+        Fallback: se não há marcadores, cacheia tudo como uma seção.
         """
         if not system or len(system) < 1024:
             return [{
@@ -117,31 +123,51 @@ class AnthropicAdapter:
                 "cache_control": {"type": "ephemeral"},
             }]
 
-        chunks = [c.strip() for c in system.split("\n\n", 2) if c.strip()]
+        # Detecta marcadores explícitos
+        markers = self._CACHE_MARKERS
+        sections = {}
+        remaining = system
 
-        if len(chunks) == 1:
-            return [{
+        for section_name, marker in markers.items():
+            if marker in remaining:
+                # Encontra o próximo marcador ou o fim
+                parts = remaining.split(marker, 1)
+                if len(parts) == 2:
+                    content_after = parts[1]
+                    # Tira conteúdo até o próximo marcador
+                    next_marker_pos = len(content_after)
+                    for other_marker in markers.values():
+                        if other_marker != marker and other_marker in content_after:
+                            pos = content_after.index(other_marker)
+                            next_marker_pos = min(next_marker_pos, pos)
+                    sections[section_name] = content_after[:next_marker_pos].strip()
+
+        # Se encontrou marcadores, monta as seções
+        if sections:
+            result = []
+            for section_name in ("base", "agent", "memory"):
+                if section_name in sections and sections[section_name]:
+                    ttl = "1h" if section_name in ("base", "agent") else None
+                    cache_ctrl = {"type": "ephemeral"}
+                    if ttl:
+                        cache_ctrl["ttl"] = ttl
+                    result.append({
+                        "type": "text",
+                        "text": sections[section_name],
+                        "cache_control": cache_ctrl,
+                    })
+            return result if result else [{
                 "type": "text",
-                "text": chunks[0],
-                "cache_control": {"type": "ephemeral", "ttl": "1h"},
+                "text": system,
+                "cache_control": {"type": "ephemeral"},
             }]
 
-        if len(chunks) == 2:
-            return [
-                {"type": "text", "text": chunks[0],
-                 "cache_control": {"type": "ephemeral", "ttl": "1h"}},
-                {"type": "text", "text": chunks[1],
-                 "cache_control": {"type": "ephemeral", "ttl": "1h"}},
-            ]
-
-        return [
-            {"type": "text", "text": chunks[0],
-             "cache_control": {"type": "ephemeral", "ttl": "1h"}},
-            {"type": "text", "text": chunks[1],
-             "cache_control": {"type": "ephemeral", "ttl": "1h"}},
-            {"type": "text", "text": "\n\n".join(chunks[2:]),
-             "cache_control": {"type": "ephemeral"}},
-        ]
+        # Fallback: sem marcadores → trata tudo como base
+        return [{
+            "type": "text",
+            "text": system,
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
+        }]
 
     def call(self, model: LLMModel, request: LLMRequest) -> LLMResponse:
         client = self._get_client()
@@ -283,6 +309,55 @@ class OpenAIAdapter:
             duration_ms=duration_ms,
             raw_response=response,
         )
+
+    def call_stream(self, model: LLMModel, request: LLMRequest):
+        """
+        Streaming version using OpenAI-compatible API.
+        Yields dictionaries with {"type": "delta", "content": "..."}.
+        """
+        client = self._get_client()
+        
+        messages = request.messages or []
+        if request.system and not any(m.get("role") == "system" for m in messages):
+            messages = [{"role": "system", "content": request.system}] + messages
+        if request.prompt:
+            messages.append({"role": "user", "content": request.prompt})
+        
+        try:
+            stream = client.chat.completions.create(
+                model=model.model_name,
+                messages=messages,
+                max_tokens=request.max_tokens or model.max_output,
+                temperature=request.temperature,
+                stream=True,
+            )
+            
+            content = ""
+            input_tokens = 0
+            output_tokens = 0
+            cached_tokens = 0
+            
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                    content += chunk.choices[0].delta.content
+                    yield {"type": "delta", "content": chunk.choices[0].delta.content}
+            
+            # Final stats
+            usage = chunk.usage if hasattr(chunk, 'usage') else None
+            if usage:
+                input_tokens = usage.prompt_tokens or 0
+                output_tokens = usage.completion_tokens or 0
+                cached_tokens = getattr(usage, "prompt_tokens_cached", 0) or 0
+            
+            yield {
+                "type": "done",
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cached_tokens": cached_tokens,
+                "cost_usd": 0.0,  # calculado no router
+            }
+        except Exception as e:
+            yield {"type": "error", "content": f"Streaming failed: {str(e)}"}
 
 
 class GoogleAdapter:
@@ -1023,6 +1098,132 @@ class LLMRouter:
             complexity=complexity,
             error=f"Todos os modelos falharam. Último erro: {last_error}",
         )
+
+
+    # Providers que suportam streaming nativo (OpenAI-compatible SDK)
+    _STREAM_PROVIDERS = {"openai", "zai", "groq", "openrouter", "moonshot",
+                         "minimax", "alibaba", "deepseek", "bigmodel"}
+
+    def route_stream(self, request: LLMRequest):
+        """
+        Versão streaming do roteamento.
+        Generator que emite dicts: {"type": "delta", "text": ...},
+        {"type": "done", "usage": ...}, {"type": "error", "error": ...}.
+        """
+        import logging
+        logger = logging.getLogger("clawvault.router")
+
+        # Classifica e seleciona modelo (mesma lógica de route)
+        complexity = request.complexity_hint
+        if complexity is None:
+            complexity = classifier.classify(request.prompt)
+
+        if request.model_override:
+            model = MODELS_CATALOG.get(request.model_override)
+            candidates = [model] if model else []
+        else:
+            model_ids = ROUTING_RULES.get(complexity, [APP_CONFIG.default_model])
+            candidates = self._filter_available_models(model_ids)
+
+        if not candidates:
+            yield {"type": "error", "error": "Nenhum modelo disponível"}
+            return
+
+        model = candidates[0]
+        adapter = self._get_adapter(model.provider)
+
+        # Monta mensagens
+        messages = request.messages or []
+        if request.prompt:
+            messages.append({"role": "user", "content": request.prompt})
+
+        # Tenta streaming nativo para providers OpenAI-compatible
+        if model.provider in self._STREAM_PROVIDERS and adapter is not None:
+            try:
+                client = adapter._get_client()
+                api_messages = list(messages)
+                if request.system:
+                    api_messages = [{"role": "system", "content": request.system}] + api_messages
+
+                stream_resp = client.chat.completions.create(
+                    model=model.model_name,
+                    messages=api_messages,
+                    max_tokens=request.max_tokens or model.max_output,
+                    temperature=request.temperature,
+                    stream=True,
+                )
+
+                full_content = []
+                input_tokens = 0
+                output_tokens = 0
+
+                for chunk in stream_resp:
+                    delta = chunk.choices[0].delta if chunk.choices else None
+                    if delta and delta.content:
+                        full_content.append(delta.content)
+                        yield {"type": "delta", "text": delta.content}
+
+                    # Usage geralmente vem no último chunk
+                    if hasattr(chunk, 'usage') and chunk.usage:
+                        input_tokens = getattr(chunk.usage, 'prompt_tokens', 0) or 0
+                        output_tokens = getattr(chunk.usage, 'completion_tokens', 0) or 0
+
+                content = "".join(full_content)
+                if not output_tokens:
+                    output_tokens = len(content) // 4  # estimate
+
+                cost = (
+                    (input_tokens * model.cost_input / 1_000_000)
+                    + (output_tokens * model.cost_output / 1_000_000)
+                )
+
+                record_usage(
+                    model_id=model.id, provider=model.provider,
+                    input_tokens=input_tokens, output_tokens=output_tokens,
+                    cost_usd=cost, operation="chat_stream",
+                    conversation_id=request.conversation_id, success=True,
+                )
+
+                yield {
+                    "type": "done",
+                    "usage": {
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "cached_tokens": 0,
+                        "cost_usd": cost,
+                    },
+                    "model_id": model.id,
+                    "provider": model.provider,
+                }
+                return
+
+            except Exception as e:
+                logger.warning(f"[route_stream] streaming falhou para {model.id}: {e}")
+                # Fallback para fake streaming abaixo
+
+        # Fallback: fake streaming via route() normal
+        full_response = self.route(request)
+        if full_response.error:
+            yield {"type": "error", "error": full_response.error}
+            return
+
+        words = full_response.content.split(" ")
+        chunk_size = 5
+        for i in range(0, len(words), chunk_size):
+            chunk = " ".join(words[i:i + chunk_size])
+            yield {"type": "delta", "text": chunk + (" " if i + chunk_size < len(words) else "")}
+
+        yield {
+            "type": "done",
+            "usage": {
+                "input_tokens": full_response.input_tokens,
+                "output_tokens": full_response.output_tokens,
+                "cached_tokens": full_response.cached_tokens,
+                "cost_usd": full_response.cost_usd,
+            },
+            "model_id": full_response.model_id,
+            "provider": full_response.provider,
+        }
 
 
 # Instância global

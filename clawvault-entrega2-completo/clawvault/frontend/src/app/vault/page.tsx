@@ -34,7 +34,9 @@ interface NotePreview {
   date?: string;
 }
 
-type ViewMode = "tree" | "graph";
+import BrainCanvas from "@/components/brain/BrainCanvas";
+
+type ViewMode = "tree" | "graph" | "brain";
 
 export default function VaultPage() {
   const [layers, setLayers] = useState<VaultLayer[]>([]);
@@ -191,6 +193,10 @@ export default function VaultPage() {
           <div className="text-xs sm:text-sm font-mono text-ink-600 dark:text-ink-400">
             {totalNotes} notas • {layers.filter((l) => l.count > 0).length} camadas
           </div>
+          <button onClick={() => setViewMode("brain")} className="btn-secondary text-xs flex items-center gap-1.5">
+            <span>🧠</span>
+            <span className="hidden sm:inline">Cérebro</span>
+          </button>
           <button onClick={loadGraph} className="btn-secondary text-xs flex items-center gap-1.5">
             <Network size={14} />
             <span className="hidden sm:inline">Grafo</span>
@@ -333,6 +339,15 @@ export default function VaultPage() {
                 </div>
               </div>
             </>
+          ) : viewMode === "brain" && graphData ? (
+            <BrainCanvas
+              data={graphData}
+              onNodeClick={(id) => {
+                const note = notes.find((n) => n.path === id || n.path.endsWith(`/${id}.md`));
+                if (note) openNote(note);
+              }}
+              className="flex-1"
+            />
           ) : viewMode === "graph" && graphData ? (
             <GraphView data={graphData} onBack={() => setViewMode("tree")} />
           ) : (
