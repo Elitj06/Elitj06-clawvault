@@ -85,7 +85,13 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       <div className="px-6 py-6 border-b border-ink-100 dark:border-ink-800">
         <Link href="/" className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-md bg-ink-900 dark:bg-ink-100 flex items-center justify-center">
-            <span className="text-accent-300 text-lg">🐾</span>
+            <span className="text-accent-300 text-lg">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0110 0v4" />
+                <circle cx="12" cy="16" r="1" fill="currentColor" />
+              </svg>
+            </span>
           </div>
           <div>
             <div className="font-display font-bold text-lg tracking-tight text-ink-900 dark:text-ink-50">

@@ -71,24 +71,32 @@ const CV_PURPLE = "#A78BFA";
 const CV_GREEN = "#4ADE80";
 const CV_DARK = "#111827";
 
+const CV_AMBER = "#FBBF24";
+const CV_CYAN = "#22D3EE";
+const CV_ROSE = "#FB7185";
+const CV_ORANGE = "#FB923C";
+const CV_TEAL = "#2DD4BF";
+
 const CAT_COLORS: Record<string, string> = {
+  // Vault layer categories — each one a distinct color
+  projetos: CV_AMBER,       // Warm amber — projects/active work
+  conceitos: CV_CYAN,       // Cyan — concepts/knowledge
+  eventos: CV_GREEN,        // Neon green — events/timeline
+  pessoas: CV_ROSE,         // Rose — people
+  empresas: CV_ORANGE,      // Orange — companies
+  drafts: CV_PURPLE,        // Purple — drafts/work in progress
+  fatos: CV_TEAL,           // Teal — facts
+  index: "#94A3B8",         // Slate — index
+  "99_index": "#94A3B8",     // Slate — index
+  other: "#6B7280",         // Gray — uncategorized
+  // Aliases
   inbox: CV_GREEN,
-  projects: CV_PURPLE,
+  projects: CV_AMBER,
   areas: CV_PURPLE,
-  resources: CV_GREEN,
-  archive: CV_PURPLE,
-  atlas: CV_GREEN,
-  scripts: CV_GREEN,
-  // Legacy mappings
-  projetos: CV_PURPLE,
-  conceitos: "#818CF8",
-  eventos: "#C084FC",
-  pessoas: "#A78BFA",
-  empresas: "#8B5CF6",
-  drafts: "#6D28D9",
-  index: "#6B7280",
-  fatos: CV_GREEN,
-  other: "#6B7280",
+  resources: CV_CYAN,
+  archive: CV_TEAL,
+  atlas: "#94A3B8",
+  scripts: CV_ORANGE,
 };
 
 function catColor(cat: string): string {
@@ -601,6 +609,7 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
   const edgesRef = useRef<any[]>([]);
   const animRef = useRef<number>(0);
   const initDone = useRef(false);
+  const prevCategoryRef = useRef<string | null>(null);
   const dragRef = useRef<{ down: boolean; node: string | null }>({ down: false, node: null });
 
   const maybeInit = useCallback(() => {
@@ -685,6 +694,29 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
     if (!ctx) { animRef.current = requestAnimationFrame(draw); return; }
     maybeInit();
 
+    // When category changes, re-spread visible nodes to avoid clumping
+    if (activeCategory !== prevCategoryRef.current && nodesRef.current.length > 0) {
+      prevCategoryRef.current = activeCategory;
+      const rect2 = canvas.getBoundingClientRect();
+      const cw = rect2.width, ch = rect2.height;
+      const visible = activeCategory ? nodesRef.current.filter((n: any) => n.category === activeCategory) : nodesRef.current;
+      if (visible.length > 0) {
+        // Spread visible nodes in a circle
+        const cx2 = cw / 2, cy2 = (ch - 55) / 2;
+        const maxR = Math.min(cw, ch - 55) * 0.35;
+        visible.forEach((n: any, i: number) => {
+          const angle = (i / visible.length) * Math.PI * 2;
+          const r = maxR * (0.4 + 0.6 * Math.random());
+          n.x = cx2 + Math.cos(angle) * r;
+          n.y = cy2 + Math.sin(angle) * r;
+          n.vx = 0; n.vy = 0;
+          // Clamp
+          n.x = Math.max(40, Math.min(cw - 40, n.x));
+          n.y = Math.max(40, Math.min(ch - 75, n.y));
+        });
+      }
+    }
+
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     const rw = Math.round(rect.width * dpr), rh = Math.round(rect.height * dpr);
@@ -717,9 +749,14 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
     ctx.stroke();
 
     const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+    // Breathing effect — nodes gently oscillate between expand and contract
+    const breathe = Math.sin(t * 0.4) * 0.0003; // slow, subtle breathing
     for (const n of nodes) {
-      n.vx += (w / 2 - n.x) * 0.0001;
-      n.vy += ((h - BOTTOM_PAD) / 2 - n.y) * 0.0001;
+      const dx = n.x - w / 2;
+      const dy = n.y - (h - BOTTOM_PAD) / 2;
+      // Gentle center pull (contract) + breathing oscillation
+      n.vx += dx * (0.00008 + breathe);
+      n.vy += dy * (0.00008 + breathe);
       for (const o of nodes) {
         if (n.id === o.id) continue;
         const d = Math.hypot(n.x - o.x, n.y - o.y) || 1;

@@ -16,7 +16,13 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
         <HamburgerButton onClick={() => setSidebarOpen(true)} />
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-md bg-ink-900 dark:bg-ink-100 flex items-center justify-center">
-            <span className="text-accent-300 text-sm">🐾</span>
+            <span className="text-accent-300 text-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0110 0v4" />
+                <circle cx="12" cy="16" r="1" fill="currentColor" />
+              </svg>
+            </span>
           </div>
           <span className="font-display font-bold text-sm">ClawVault</span>
         </div>
