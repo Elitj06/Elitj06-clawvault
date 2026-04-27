@@ -204,6 +204,11 @@ class SaveNoteRequest(BaseModel):
     tags: list[str] = []
 
 
+class TranscribeRequest(BaseModel):
+    audio_data: str  # base64 encoded audio
+    mime_type: str = "audio/webm"
+
+
 # ==========================================================================
 # ROTAS: STATUS E CONFIGURAÇÃO
 # ==========================================================================
@@ -248,6 +253,19 @@ def get_status():
             "agents": total_agents["n"],
         },
     }
+
+
+@app.post("/api/transcribe")
+async def transcribe_audio_endpoint(req: TranscribeRequest):
+    """Transcribe audio using Deepgram nova-3 (PT-BR)."""
+    try:
+        import base64 as b64
+        audio_bytes = b64.b64decode(req.audio_data)
+        from backend.stt import transcribe_audio
+        result = await transcribe_audio(audio_bytes, req.mime_type)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/models")

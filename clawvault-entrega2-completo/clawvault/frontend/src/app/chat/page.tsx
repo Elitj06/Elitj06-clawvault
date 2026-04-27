@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Loader2, Sparkles, Zap, DollarSign, Hash, Paperclip, Image, Mic, X } from "lucide-react";
+import { Send, Loader2, Sparkles, Zap, DollarSign, Hash, Paperclip, Image, Mic, X, MicOff } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   getSelectedConversationId,
@@ -60,6 +60,11 @@ export default function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const [dragOver, setDragOver] = useState(false);
 
   // Load agents on mount
   useEffect(() => {
@@ -146,6 +151,131 @@ export default function ChatPage() {
   // -------------------------------------------------------------------------
   // Send with streaming SSE
   // -------------------------------------------------------------------------
+  // --- Paste handler (Ctrl+V) ---
+  useEffect(() => {
+    function handlePaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) continue;
+          const reader = new FileReader();
+          reader.onload = () => {
+            setAttachments((prev) => [...prev, {
+              name: file.name || `paste-${Date.now()}.png`,
+              type: "image",
+              dataUrl: reader.result as string,
+              size: file.size,
+            }]);
+          };
+          reader.readAsDataURL(file);
+        } else if (item.type.startsWith("audio/")) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) continue;
+          const reader = new FileReader();
+          reader.onload = () => {
+            setAttachments((prev) => [...prev, {
+              name: file.name || `paste-${Date.now()}.webm`,
+              type: "audio",
+              dataUrl: reader.result as string,
+              size: file.size,
+            }]);
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    }
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, []);
+
+  // --- Drag & Drop ---
+  useEffect(() => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    function handleDragOver(e: DragEvent) { e.preventDefault(); setDragOver(true); }
+    function handleDragLeave(e: DragEvent) { e.preventDefault(); setDragOver(false); }
+    function handleDrop(e: DragEvent) {
+      e.preventDefault();
+      setDragOver(false);
+      const files = e.dataTransfer?.files;
+      if (!files) return;
+      Array.from(files).forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          let type: FileAttachment["type"] = "file";
+          if (file.type.startsWith("image/")) type = "image";
+          else if (file.type.startsWith("audio/")) type = "audio";
+          setAttachments((prev) => [...prev, { name: file.name, type, dataUrl: reader.result as string, size: file.size }]);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    el.addEventListener("dragover", handleDragOver);
+    el.addEventListener("dragleave", handleDragLeave);
+    el.addEventListener("drop", handleDrop);
+    return () => {
+      el.removeEventListener("dragover", handleDragOver);
+      el.removeEventListener("dragleave", handleDragLeave);
+      el.removeEventListener("drop", handleDrop);
+    };
+  }, []);
+
+  // --- Audio recording ---
+  async function toggleRecording() {
+    if (recording) {
+      mediaRecorderRef.current?.stop();
+      setRecording(false);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const reader = new FileReader();
+        reader.onload = () => {
+          setAttachments((prev) => [...prev, {
+            name: `audio-${Date.now()}.webm`,
+            type: "audio",
+            dataUrl: reader.result as string,
+            size: blob.size,
+          }]);
+        };
+        reader.readAsDataURL(blob);
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setRecording(true);
+    } catch (err) {
+      console.error("Microphone access denied:", err);
+      setError("Não foi possível acessar o microfone. Verifique as permissões.");
+    }
+  }
+
+  // --- Transcribe audio via Deepgram ---
+  async function transcribeAttachment(att: FileAttachment): Promise<string> {
+    try {
+      const base64Data = att.dataUrl.split(",")[1];
+      const res = await fetch(`${API_URL}/api/transcribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audio_data: base64Data, mime_type: "audio/webm" }),
+      });
+      if (!res.ok) return "";
+      const data = await res.json();
+      return data.text || "";
+    } catch {
+      return "";
+    }
+  }
+
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files) return;
@@ -186,10 +316,26 @@ export default function ChatPage() {
     // Build message text including attachment descriptions
     let messageText = text;
     const currentAttachments = [...attachments];
+    
+    // Transcribe audio attachments first
+    setTranscribing(true);
+    const audioDescriptions: string[] = [];
+    for (const att of currentAttachments) {
+      if (att.type === "audio") {
+        const transcription = await transcribeAttachment(att);
+        if (transcription) {
+          audioDescriptions.push(`[Áudio transcrito: ${transcription}]`);
+        } else {
+          audioDescriptions.push(`[Áudio: ${att.name}]`);
+        }
+      }
+    }
+    setTranscribing(false);
+    
     if (currentAttachments.length > 0) {
-      const fileDescs = currentAttachments.map((a) => {
+      const fileDescs = currentAttachments.map((a, i) => {
         if (a.type === "image") return `[Imagem: ${a.name}]`;
-        if (a.type === "audio") return `[Áudio: ${a.name}]`;
+        if (a.type === "audio") return audioDescriptions.shift() || `[Áudio: ${a.name}]`;
         return `[Arquivo: ${a.name}]`;
       });
       messageText = fileDescs.join("\n") + (text ? "\n" + text : "");
@@ -348,7 +494,16 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-7rem)] lg:h-[calc(100vh-4rem)] flex flex-col animate-fade-in">
+    <div ref={chatContainerRef} className={`h-[calc(100vh-7rem)] lg:h-[calc(100vh-4rem)] flex flex-col animate-fade-in relative ${dragOver ? "ring-2 ring-accent-400 ring-offset-2 rounded-lg" : ""}`}>
+      {/* Drag overlay */}
+      {dragOver && (
+        <div className="absolute inset-0 z-50 bg-accent-400/10 backdrop-blur-sm rounded-lg flex items-center justify-center pointer-events-none">
+          <div className="text-center">
+            <Paperclip size={32} className="mx-auto text-accent-400 mb-2" />
+            <p className="text-sm font-medium text-accent-600 dark:text-accent-400">Solte os arquivos aqui</p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-3">
         <div>
@@ -424,7 +579,7 @@ export default function ChatPage() {
               Comece uma conversa
             </h3>
             <p className="text-ink-500 dark:text-ink-400 text-sm max-w-sm">
-              Anexe fotos, áudios ou prints. O sistema escolhe o melhor modelo automaticamente.
+              Anexe fotos, áudios ou prints (Ctrl+V). Arraste arquivos aqui. Use o 🎙️ para gravar áudio.
             </p>
           </div>
         )}
@@ -506,6 +661,23 @@ export default function ChatPage() {
             >
               <Paperclip size={16} />
             </button>
+            <button
+              onClick={toggleRecording}
+              disabled={sending || transcribing}
+              className={`p-1.5 rounded-md transition-colors disabled:opacity-40 ${
+                recording
+                  ? "bg-red-500 text-white hover:bg-red-600 animate-pulse"
+                  : "hover:bg-ink-100 dark:hover:bg-ink-800 text-ink-400 hover:text-ink-600 dark:hover:text-ink-300"
+              }`}
+              title={recording ? "Parar gravação" : "Gravar áudio"}
+            >
+              {recording ? <MicOff size={16} /> : <Mic size={16} />}
+            </button>
+            {transcribing && (
+              <span className="text-[10px] text-accent-500 dark:text-accent-400 font-mono animate-pulse">
+                Transcrevendo áudio...
+              </span>
+            )}
             <div className="text-xs text-ink-400 dark:text-ink-500 font-mono">
               {input.length > 0 ? `${input.length} chars` : ""}
             </div>
