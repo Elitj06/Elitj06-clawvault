@@ -749,22 +749,44 @@ function BrainView({ data, notes, onOpenNote, onBack }: {
     ctx.stroke();
 
     const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-    // Breathing effect — very subtle, gentle oscillation
-    const breathe = Math.sin(t * 0.3) * 0.00006; // very slow, very subtle
+    // Breathing: subtle radial oscillation that returns to initial positions
+    // breatheFactor oscillates between -1 and +1, multiplied by tiny amplitude
+    const breatheFactor = Math.sin(t * 0.3);
+    const BREATHE_AMP = 0.00003; // half of previous — barely visible
+    // Safe area bounds (keep nodes well within visible area)
+    const SAFE_LEFT = 60;
+    const SAFE_RIGHT = w - 60;
+    const SAFE_TOP = 70; // below category bar
+    const SAFE_BOTTOM = h - BOTTOM_PAD - 30;
+    const centerX = w / 2;
+    const centerY = (SAFE_TOP + SAFE_BOTTOM) / 2;
+
     for (const n of nodes) {
-      const dx = n.x - w / 2;
-      const dy = n.y - (h - BOTTOM_PAD) / 2;
-      // Gentle center pull + subtle breathing
-      n.vx += dx * (0.00008 + breathe);
-      n.vy += dy * (0.00008 + breathe);
+      const dx = n.x - centerX;
+      const dy = n.y - centerY;
+      const dist = Math.hypot(dx, dy) || 1;
+      // Strong center pull to keep nodes contained
+      const centerPull = 0.00012;
+      n.vx += dx * centerPull;
+      n.vy += dy * centerPull;
+      // Breathing: radial push/pull that alternates (expands then contracts)
+      n.vx += (dx / dist) * breatheFactor * BREATHE_AMP * dist;
+      n.vy += (dy / dist) * breatheFactor * BREATHE_AMP * dist;
+      // Node repulsion
       for (const o of nodes) {
         if (n.id === o.id) continue;
         const d = Math.hypot(n.x - o.x, n.y - o.y) || 1;
         if (d < 90) { const f = 500 / (d * d); n.vx += ((n.x - o.x) / d) * f * 0.25; n.vy += ((n.y - o.y) / d) * f * 0.25; }
       }
+      // Boundary push-back forces (soft walls)
+      if (n.x < SAFE_LEFT) n.vx += (SAFE_LEFT - n.x) * 0.05;
+      if (n.x > SAFE_RIGHT) n.vx -= (n.x - SAFE_RIGHT) * 0.05;
+      if (n.y < SAFE_TOP) n.vy += (SAFE_TOP - n.y) * 0.05;
+      if (n.y > SAFE_BOTTOM) n.vy -= (n.y - SAFE_BOTTOM) * 0.05;
+
       n.vx *= 0.88; n.vy *= 0.88;
-      n.x = Math.max(30, Math.min(w - 30, n.x + n.vx));
-      n.y = Math.max(50, Math.min(h - BOTTOM_PAD - 20, n.y + n.vy)); // top padding for category bar
+      n.x = Math.max(SAFE_LEFT, Math.min(SAFE_RIGHT, n.x + n.vx));
+      n.y = Math.max(SAFE_TOP, Math.min(SAFE_BOTTOM, n.y + n.vy));
     }
 
     const isVisible = (n: any) => !activeCategory || n.category === activeCategory;
