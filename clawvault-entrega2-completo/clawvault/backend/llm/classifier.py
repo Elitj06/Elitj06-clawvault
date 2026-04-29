@@ -114,7 +114,16 @@ class TaskClassifier:
         context: Optional[str] = None,
         message_count: int = 0,
     ) -> TaskComplexity:
-        """Interface principal — mesma assinatura da versão anterior."""
+        """Classify a prompt into a TaskComplexity level.
+
+    Args:
+        prompt: The user's message.
+        context: Optional additional context (vault content, etc.).
+        message_count: Number of previous messages in conversation.
+
+    Returns:
+        TaskComplexity: Classified complexity level.
+    """
         full_text = prompt + " " + (context or "")
         prompt_stripped = prompt.strip()
 
@@ -182,10 +191,16 @@ class TaskClassifier:
         return self._record(TaskComplexity.MEDIUM)
 
     def _llm_classify(self, prompt: str) -> Optional[TaskComplexity]:
-        """
-        Usa modelo gratuito (glm-4.5-flash via Z.AI ou Bigmodel) para classificar.
-        Prompt mínimo (~50 tokens input), espera 1 token de output.
-        """
+        """Classify using a free LLM model (glm-4.5-flash).
+
+    Uses minimal prompt (~50 tokens input), expects 1 token output.
+
+    Args:
+        prompt: User message to classify.
+
+    Returns:
+        TaskComplexity or None if classification fails.
+    """
         # Check cache
         cache_key = hashlib.md5(prompt[:500].encode()).hexdigest()
         if cache_key in self._cache:
@@ -304,7 +319,16 @@ class TaskClassifier:
         context: Optional[str] = None,
         message_count: int = 0,
     ) -> tuple:
-        """Retorna (complexity, explanation) — útil para debug."""
+        """Classify and return explanation string for debugging.
+
+    Args:
+        prompt: User message.
+        context: Optional context.
+        message_count: Previous message count.
+
+    Returns:
+        tuple: (TaskComplexity, explanation_string)
+    """
         result = self.classify(prompt, context, message_count)
         
         prompt_stripped = prompt.strip()

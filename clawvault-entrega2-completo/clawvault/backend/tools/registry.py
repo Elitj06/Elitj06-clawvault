@@ -15,7 +15,11 @@ logger = logging.getLogger("clawvault.tools")
 
 
 class ToolRegistry:
-    """Registry of available tools for function calling."""
+    """Central registry for all available function calling tools.
+
+    Tools auto-register via Tool.__init_subclass__.
+    Provides schema listing for LLM tool_choice and dispatch by name.
+    """
 
     def __init__(self) -> None:
         self._tools: dict[str, Tool] = {}

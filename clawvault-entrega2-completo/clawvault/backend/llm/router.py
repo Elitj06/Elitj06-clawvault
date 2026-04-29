@@ -40,7 +40,22 @@ from backend.llm.classifier import classifier
 
 @dataclass
 class LLMResponse:
-    """Resposta unificada de qualquer provider."""
+    """Unified response from any LLM provider.
+
+    Attributes:
+        content: Response text.
+        model_id: Model identifier used.
+        provider: Provider name.
+        input_tokens: Tokens consumed in prompt.
+        output_tokens: Tokens generated.
+        cached_tokens: Tokens served from cache.
+        cost_usd: Cost in USD.
+        duration_ms: Latency in milliseconds.
+        complexity: Classified TaskComplexity level.
+        fallback_used: Whether a fallback model was needed.
+        error: Error message if request failed.
+        tool_calls: Function calling results (if any).
+    """
     content: str
     model_id: str
     provider: str
@@ -63,7 +78,17 @@ class LLMResponse:
 
 @dataclass
 class LLMRequest:
-    """Requisição unificada."""
+    """Unified LLM request.
+
+    Attributes:
+        prompt: User message.
+        system: System prompt.
+        messages: Conversation history.
+        complexity_hint: Override complexity classification.
+        model_override: Force a specific model.
+        tools: OpenAI-format tool schemas for function calling.
+        tool_choice: Tool selection strategy.
+    """
     prompt: str
     system: Optional[str] = None
     messages: Optional[list[dict]] = None  # Histórico de mensagens
@@ -1002,9 +1027,20 @@ class LLMRouter:
         return spend["spent_usd"] < APP_CONFIG.monthly_budget_usd
 
     def route(self, request: LLMRequest) -> LLMResponse:
-        """
-        Roteia a requisição para o melhor modelo disponível.
-        """
+        """Route the request to the best available model.
+
+    Flow:
+        1. Optional compression/M2M mode
+        2. Classify complexity (if not hinted)
+        3. Handle model override or select from routing rules
+        4. Filter to available models (API key present)
+        5. Check budget — downgrade if exceeded
+        6. Try models in order with automatic fallback
+        7. Record usage and return
+
+    Returns:
+        LLMResponse: Standardized response from the model.
+    """
         # ============== FASE 0: COMPRESSÃO / M2M (opcional) ==============
         # Se o usuário pediu compressão ou M2M, transformamos o prompt
         # antes de qualquer outra coisa. Isso economiza tokens de input

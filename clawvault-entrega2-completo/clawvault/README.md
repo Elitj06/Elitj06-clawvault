@@ -1,248 +1,320 @@
 # 🐾 ClawVault
 
-> Sistema pessoal de agentes multi-LLM com memória persistente, roteamento inteligente e integração WhatsApp — construído para economizar tokens sem perder qualidade.
+> Sistema pessoal de agentes multi-LLM com memória persistente, roteamento inteligente e integração WhatsApp.
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110-green.svg)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
-[![Status](https://img.shields.io/badge/Status-v0.2.0-orange.svg)]()
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 
 ---
 
-## 💡 O que é
+## Visão Geral
 
-ClawVault é uma alternativa self-hosted ao OpenClaw e Hermes Agent, criada com três obsessões:
+ClawVault é um assistente IA local com UI web. Backend em FastAPI, frontend em Next.js, memória em SQLite + markdown vault. Suporta 52 modelos de 11 providers com roteamento automático por complexidade.
 
-1. **Economia de tokens** — roteamento automático entre 52 modelos de 11 providers, escolhendo sempre o mais barato que atende
-2. **Memória real** — vault estilo Obsidian + memória progressiva por agente que aprende sem inchar
-3. **WhatsApp nativo** — integração com Evolution API para atendimento automatizado em português
-
-Este é um projeto pessoal, feito por e para um empreendedor. Não é um SaaS.
+**Diferenciais:**
+- **Roteamento inteligente** — classifica cada pergunta (trivial→crítico) e escolhe o modelo mais barato que resolve
+- **Memória persistente** — vault estilo Obsidian com wiki-links + memória hierárquica por agente
+- **Function calling** — loop agentic com 5 tools integrados (web_fetch, api_call, vault_search, calculator, get_current_time)
+- **Busca semântica** — embeddings via Ollama + cache semântico de respostas
+- **WhatsApp nativo** — Evolution API com auto-resposta, digitação, rate limiting
+- **Compressão transparente** — reduz prompts antes de enviar ao LLM
 
 ---
 
-## 🎯 Diferenciais
+## Stack
 
-### Roteamento inteligente de LLMs
+| Camada | Tecnologia | Versão |
+|---|---|---|
+| Backend | Python + FastAPI + Uvicorn | 3.11+ / 0.110+ |
+| Frontend | Next.js + React + TypeScript | 16 / 19 |
+| Banco | SQLite (via stdlib) | — |
+| Estilo | Tailwind CSS + Lucide Icons | 3.4+ |
+| Gráficos | Recharts | 2.12+ |
+| STT | Deepgram nova-3 (PT-BR) | REST direto |
+| Embeddings | Ollama (local) / OpenAI | — |
+| WhatsApp | Evolution API (Baileys) | — |
 
-Cada pergunta é classificada em 5 níveis de complexidade. O sistema escolhe o modelo mais barato que dá conta:
+---
 
-| Complexidade | Vai para |
-|---|---|
-| 🟢 Trivial | GLM-4.7-flash **grátis** (Z.ai) |
-| 🟢 Simples | Llama 3.3 70B **grátis** (OpenRouter) |
-| 🟡 Média | MiniMax M2.5 ($0.28/M) |
-| 🟠 Complexa | Claude Sonnet 4.6 |
-| 🔴 Crítica | Claude Opus 4.7 |
-
-**Resultado típico:** 60-70% de economia vs. usar sempre um modelo premium.
-
-### Memória hierárquica de 4 camadas
-
-- **Quente** (RAM): últimas 20 mensagens
-- **Morna** (SQLite): últimos 7 dias
-- **Fria** (Vault markdown com wiki-links): 7-90 dias
-- **Arquivo** (comprimido): +90 dias
-
-### Memória compartilhada entre agentes
-
-O agente principal publica contexto em "canais" (namespaces) e sub-agentes consomem apenas o relevante para sua tarefa. **Sub-agentes não carregam memórias que não precisam.**
-
-### Segundo cérebro estilo Obsidian
+## Estrutura do Projeto
 
 ```
-vault/
-├── 00_raw/      Dados brutos
-├── 10_wiki/     Conhecimento com [[wiki-links]]
-├── 20_output/   Conteúdo gerado
-└── 99_index/    Grafo de conexões
+clawvault/
+├── backend/                    # Python backend
+│   ├── api/
+│   │   ├── server.py           # FastAPI app — todas as rotas REST + WebSocket
+│   │   └── bridge.py           # Ponte bidirecional OpenClaw ↔ ClawVault
+│   ├── core/
+│   │   ├── config.py           # Catálogo de 52 modelos, regras de roteamento, API keys
+│   │   └── database.py         # SQLite helpers (db.initialize, db.fetch_all, etc.)
+│   ├── llm/
+│   │   ├── router.py           # Roteador inteligente — classifica e despacha
+│   │   └── classifier.py       # Classificação em 3 camadas (regex → LLM → histograma)
+│   ├── memory/
+│   │   ├── manager.py          # Gerenciador de conversas e mensagens
+│   │   ├── vault.py            # Segundo cérebro (markdown wiki)
+│   │   ├── multi_agent.py      # Registry de agentes + memória compartilhada
+│   │   └── auto_learn.py       # Auto-detecção de informações importantes
+│   ├── tools/
+│   │   ├── base.py             # Classe abstrata Tool (auto-registro)
+│   │   ├── registry.py         # Registro central + dispatch
+│   │   └── builtins.py         # 5 tools: web_fetch, api_call, vault_search, calculator, time
+│   ├── channels/
+│   │   └── whatsapp/           # Evolution API integration (webhook, client)
+│   ├── compression/            # Compressor de prompts
+│   ├── agents/                 # Protocolo AgentSpeak
+│   ├── importers/              # Importação de dados do OpenClaw
+│   ├── fact_extractor.py       # Extração automática de fatos
+│   ├── background.py           # Background worker (fact extraction, etc.)
+│   ├── embeddings.py           # Embeddings (Ollama/OpenAI)
+│   ├── search.py               # Busca semântica + híbrida + cache
+│   ├── stt.py                  # Speech-to-Text (Deepgram)
+│   ├── slash_commands.py       # Comandos /help, /vault, etc.
+│   ├── observability.py        # Métricas de uso e custo
+│   └── requirements.txt        # Dependências Python
+├── frontend/                   # Next.js dashboard
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── page.tsx        # Home — visão geral
+│   │   │   ├── chat/page.tsx   # Chat com agentes
+│   │   │   ├── vault/page.tsx  # Vault explorer + brain graph
+│   │   │   ├── agents/page.tsx # Gerenciar agentes
+│   │   │   ├── usage/page.tsx  # Gráficos de uso
+│   │   │   ├── settings/page.tsx # Configurações
+│   │   │   └── whatsapp/page.tsx # WhatsApp management
+│   │   ├── components/
+│   │   │   ├── brain/BrainCanvas.tsx  # Grafo SVG animado
+│   │   │   ├── Sidebar.tsx            # Navegação lateral
+│   │   │   └── LayoutShell.tsx        # Layout wrapper
+│   │   └── lib/api.ts          # Cliente API
+│   └── package.json
+├── vault/                      # Segundo cérebro (markdown)
+│   ├── 00_raw/                 # Dados brutos
+│   ├── 10_wiki/                # Conhecimento curado
+│   │   ├── conceitos/          # Conceitos e definições
+│   │   ├── eventos/            # Eventos e logs diários
+│   │   ├── fatos/              # Fatos extraídos automaticamente
+│   │   └── projetos/           # Estados de projetos
+│   ├── 20_output/              # Conteúdo gerado
+│   ├── 30_agents/              # Memória dos agentes
+│   └── 99_index/               # Índices e links
+├── data/                       # SQLite DB + backups
+├── docs/                       # Documentação
+├── scripts/                    # Scripts utilitários
+│   ├── start.sh                # Iniciar backend + frontend
+│   ├── systemd/                # Unit files para systemd
+│   └── push-to-github.sh       # Push para GitHub
+├── .env                        # Variáveis de ambiente (API keys)
+└── README.md
 ```
 
-Tudo markdown, legível fora do sistema.
-
-### Compressão humana → máquina
-
-Quando você escreve *"Por favor, você poderia me ajudar a revisar este código..."*, o sistema comprime transparente para **"revisar este código"** antes de enviar ao LLM. Você escreve natural, o sistema economiza.
-
 ---
 
-## 📦 Stack
-
-**Backend:**
-- Python 3.11+ / FastAPI / SQLite / Pydantic
-- SDKs: Anthropic, OpenAI (compatível com Z.ai, Groq, Moonshot, MiniMax, Alibaba, OpenRouter, DeepSeek), Google
-
-**Frontend:**
-- Next.js 15 (App Router) / React 19 / TypeScript
-- Tailwind CSS / Recharts / Lucide Icons
-
-**Integrações:**
-- Evolution API (WhatsApp via Baileys)
-- Ollama (modelos locais)
-
----
-
-## 🚀 Instalação rápida
+## Como Rodar
 
 ### Pré-requisitos
 
 - Python 3.11+
-- Node.js 20+ (para o dashboard)
-- Docker (opcional, para Evolution API do WhatsApp)
+- Node.js 20+ (para o frontend)
+- Opcional: Ollama (para embeddings locais e modelos locais)
 
-### Passos
+### Instalação
 
 ```bash
 # 1. Clone
 git clone https://github.com/Elitj06/Elitj06-clawvault.git
-cd Elitj06-clawvault
+cd Elitj06-clawvault/clawvault
 
-# 2. Configure
+# 2. Configure as variáveis de ambiente
 cp .env.example .env
-# Edite .env e coloque pelo menos UMA chave de API
-# Recomendação: OPENROUTER_API_KEY (300+ modelos numa só chave)
+# Edite .env — pelo menos UMA API key é necessária
+# Recomendação: ZAI_API_KEY ou OPENROUTER_API_KEY
 
-# 3. Backend
+# 3. Instale dependências do backend
 pip install -r backend/requirements.txt
+
+# 4. Inicialize o banco
 python -m backend.cli.main init
 
-# 4. Teste pelo CLI
-python -m backend.cli.main chat
-
-# 5. Ou suba o servidor API + dashboard
+# 5. Inicie o backend
 python -m backend.api.server
-# (em outro terminal)
-cd frontend && npm install && npm run dev
+# Disponível em http://localhost:8000 (docs: /docs)
 
-# Acesse http://localhost:3000
+# 6. Em outro terminal, inicie o frontend
+cd frontend
+npm install
+npm run dev
+# Disponível em http://localhost:3000
+
+# Ou use o script que sobe ambos:
+./scripts/start.sh
 ```
 
-Guia detalhado em [`docs/INSTALACAO.md`](docs/INSTALACAO.md).
-
----
-
-## 🎬 Dashboard
-
-O dashboard web (`localhost:3000`) inclui:
-
-- **Visão geral** — custos, providers, gráfico de gastos
-- **Chat** — conversar com qualquer agente, ver modelo usado e custo em tempo real
-- **Agentes** — gerenciar agentes/sub-agentes, ver memória progressiva
-- **Vault** — explorar notas, buscar, ver grafo de conexões
-- **WhatsApp** — QR Code, contatos, configurações de atendimento
-- **Uso e custos** — gráficos detalhados por modelo e período
-- **Configurações** — status de providers, modelos disponíveis
-
----
-
-## 📱 WhatsApp
-
-Integração via [Evolution API](https://doc.evolution-api.com/) self-hosted:
+### Produção (systemd)
 
 ```bash
-# 1. Rode o Evolution API (Docker)
-docker run -d --name evolution -p 8080:8080 \
-  -e AUTHENTICATION_API_KEY=SUA_CHAVE_FORTE \
-  atendai/evolution-api:latest
+# Copie os unit files
+sudo cp scripts/systemd/clawvault-backend.service /etc/systemd/system/
+sudo cp scripts/systemd/clawvault-frontend.service /etc/systemd/system/
 
-# 2. Configure no .env
-EVOLUTION_BASE_URL=http://localhost:8080
-EVOLUTION_API_KEY=SUA_CHAVE_FORTE
-
-# 3. No dashboard, vá em WhatsApp → Criar instância → Escanear QR Code
-
-# 4. Pronto! Mensagens recebidas disparam auto-resposta via LLM
+# Ative e inicie
+sudo systemctl daemon-reload
+sudo systemctl enable --now clawvault-backend
+sudo systemctl enable --now clawvault-frontend
 ```
-
-**Funcionalidades do módulo WhatsApp:**
-- Auto-resposta com IA
-- Simulação de "digitando..."
-- Marca mensagens como lidas
-- Rate limiting por contato
-- Horário comercial configurável
-- Bloqueio/desbloqueio de contatos
-- Saudação automática no primeiro contato
-- Suporte a grupos (opcional)
-
-⚠️ **Aviso:** Evolution API usa Baileys (conexão não-oficial). Meta pode banir números. Use chip dedicado, não pessoal.
 
 ---
 
-## 💰 Providers de LLM suportados
+## Variáveis de Ambiente
 
-52 modelos catalogados, 12 grátis. Uma única chave do OpenRouter já te dá acesso a 300+ modelos.
+Configure no arquivo `.env` na raiz do projeto:
 
-| Provider | Modelos destacados | Grátis? |
+| Variável | Obrigatória | Descrição |
 |---|---|---|
-| **OpenRouter** | Gateway para 300+ modelos | ✅ 8 modelos grátis |
-| **Anthropic** | Opus 4.7, Sonnet 4.6, Haiku 4.5 | — |
-| **OpenAI** | GPT-5, GPT-5-mini, GPT-4.1, GPT-4o | — |
-| **Google** | Gemini 3 Pro, Gemini 2.5 Flash | ✅ Flash Lite |
-| **Z.ai (GLM)** | GLM-5.1, GLM-4.7, GLM-4.7-flash | ✅ 2 modelos |
-| **Groq** | Llama 70B, GPT-OSS, Kimi — tudo ultra rápido | ✅ Free tier |
-| **Moonshot** | Kimi K2.6 (262k contexto) | — |
-| **MiniMax** | M2.7, M2.5 (excelente em código) | — |
-| **Alibaba** | Qwen 3.6 Max, Qwen 3 Coder | — |
-| **DeepSeek** | DeepSeek V3 | — |
-| **Ollama** | Qwen 2.5 Coder, Llama 3.2 (local) | ✅ Sempre |
+| `ZAI_API_KEY` | Recomendada | API key da Z.ai (GLM-5.1, GLM-4.7) |
+| `BIGMODEL_API_KEY` | Opcional | GLM free tier (glm-4.5-flash grátis) |
+| `GROQ_API_KEY` | Opcional | Groq (Llama, Qwen, Kimi — ultra rápido) |
+| `OPENAI_API_KEY` | Opcional | OpenAI (GPT-5, GPT-4o) |
+| `ANTHROPIC_API_KEY` | Opcional | Anthropic (Claude Opus, Sonnet, Haiku) |
+| `GOOGLE_API_KEY` | Opcional | Google (Gemini 3 Pro, Flash) |
+| `OPENROUTER_API_KEY` | Opcional | Gateway para 300+ modelos |
+| `DEEPSEEK_API_KEY` | Opcional | DeepSeek V3 |
+| `MOONSHOT_API_KEY` | Opcional | Moonshot/Kimi (262k contexto) |
+| `MINIMAX_API_KEY` | Opcional | MiniMax M2.7, M2.5 |
+| `DASHSCOPE_API_KEY` | Opcional | Alibaba Qwen (1M contexto) |
+| `DEEPGRAM_API_KEY` | Opcional | Deepgram STT (transcrição de áudio) |
+| `OLLAMA_HOST` | Opcional | URL do Ollama local (padrão: `http://localhost:11434`) |
+| `DEFAULT_MODEL` | Opcional | Modelo padrão (padrão: `zai-glm-5.1`) |
+| `MONTHLY_BUDGET_USD` | Opcional | Orçamento mensal em USD (padrão: `50.0`) |
+| `DEBUG` | Opcional | Modo debug (padrão: `false`) |
+
+> **Mínimo funcional:** apenas `ZAI_API_KEY` para usar GLM-5.1 como modelo principal + GLM-4.7-flash grátis para tarefas triviais.
 
 ---
 
-## 📚 Estrutura
+## API Endpoints
 
-```
-clawvault/
-├── backend/              Python + FastAPI
-│   ├── core/             Config, database
-│   ├── llm/              Roteador, classificador
-│   ├── memory/           Manager, vault, multi-agente
-│   ├── compression/      Compressor humano→máquina
-│   ├── agents/           Protocolo AgentSpeak
-│   ├── importers/        Importador OpenClaw
-│   ├── channels/         WhatsApp (Evolution API)
-│   ├── api/              Servidor FastAPI
-│   └── cli/              Interface terminal
-├── frontend/             Next.js 15 dashboard
-├── docs/                 Documentação em português
-├── scripts/              Scripts utilitários
-└── vault/                Seu vault (criado na instalação)
-```
+O backend expõe a API REST em `http://localhost:8000`. O frontend faz proxy de `/api/*` para o backend via Next.js rewrites.
+
+| Método | Endpoint | Descrição |
+|---|---|---|
+| `GET` | `/` | Health check |
+| `GET` | `/api/status` | Status geral (providers, budget, stats) |
+| `GET` | `/api/models` | Lista modelos disponíveis |
+| `POST` | `/api/chat` | Chat (sync) — principal endpoint |
+| `POST` | `/api/chat/stream` | Chat (SSE streaming) |
+| `WS` | `/ws/chat` | Chat via WebSocket |
+| `POST` | `/api/transcribe` | Transcrição de áudio (Deepgram) |
+| `GET` | `/api/commands` | Lista slash commands |
+| `GET` | `/api/conversations` | Lista conversas |
+| `GET` | `/api/conversations/{id}/messages` | Mensagens de uma conversa |
+| `DELETE` | `/api/conversations/{id}` | Arquivar conversa |
+| `GET` | `/api/agents` | Lista agentes |
+| `POST` | `/api/agents` | Cria sub-agente |
+| `GET` | `/api/agents/{name}` | Detalhes de um agente |
+| `GET` | `/api/agents/{name}/memory` | Memória de um agente |
+| `GET` | `/api/shared-memory/channels` | Canais de memória compartilhada |
+| `POST` | `/api/shared-memory` | Publicar memória compartilhada |
+| `GET` | `/api/vault/status` | Estatísticas do vault |
+| `POST` | `/api/vault/notes` | Salvar nota no vault |
+| `GET` | `/api/vault/search` | Buscar notas (keyword/semantic/hybrid) |
+| `GET` | `/api/vault/notes/{path}` | Ler nota específica |
+| `DELETE` | `/api/vault/notes/{path}` | Deletar nota |
+| `GET` | `/api/vault/graph` | Grafo de conhecimento (para visualização) |
+| `GET` | `/api/vault/entities` | Lista entidades do vault |
+| `GET` | `/api/facts` | Lista fatos extraídos |
+| `POST` | `/api/facts/extract/{conv_id}` | Disparar extração de fatos |
+| `GET` | `/api/usage/budget` | Gastos do mês |
+| `GET` | `/api/usage/by-model` | Uso por modelo |
+| `GET` | `/api/usage/daily` | Uso diário |
+| `GET` | `/api/observability/*` | Métricas detalhadas |
+| `POST` | `/api/embeddings/reindex` | Reindexar vault para busca semântica |
+| `GET` | `/api/bridge/status` | Status da ponte OpenClaw |
+| `POST` | `/api/bridge/import` | Importar dados do OpenClaw |
+| `POST` | `/api/bridge/export` | Exportar dados para OpenClaw |
+| `POST` | `/api/bridge/sync` | Sincronização bidirecional |
+
+> Documentação interativa completa em `http://localhost:8000/docs` (Swagger UI).
 
 ---
 
-## 📖 Documentação
+## Roteamento de Modelos
+
+Cada mensagem é classificada em 5 níveis. O roteador seleciona o modelo mais barato disponível:
+
+| Nível | Descrição | Modelo primário |
+|---|---|---|
+| `TRIVIAL` | Saudações, comandos curtos | GLM-4.5-flash (grátis) |
+| `SIMPLE` | Perguntas factuais, lookup | Z.ai GLM-5.1 |
+| `MEDIUM` | Análise, código, escrita | Z.ai GLM-5.1 → Groq Kimi K2 |
+| `COMPLEX` | Arquitetura, debug profundo | Z.ai GLM-5.1 → Groq Kimi K2 |
+| `CRITICAL` | Decisões de negócio, produção | Z.ai GLM-5.1 → Groq Kimi K2 |
+
+Fallback automático: se o modelo primário falhar, tenta o próximo da lista. Se todos falharem, erro é retornado.
+
+---
+
+## Function Calling (Tools)
+
+O sistema suporta function calling com loop agentic (máximo 5 iterações):
+
+| Tool | Descrição |
+|---|---|
+| `web_fetch` | Busca conteúdo de uma URL |
+| `api_call` | Faz requisições HTTP (GET/POST/PUT/DELETE) |
+| `vault_search` | Busca no knowledge base local |
+| `calculator` | Avalia expressões matemáticas seguras |
+| `get_current_time` | Retorna data/hora em timezone específica |
+
+---
+
+## Frontend (Dashboard)
+
+O dashboard web inclui:
+
+- **Home** — visão geral de custos, providers, estatísticas
+- **Chat** — conversar com qualquer agente, upload de arquivos, gravação de áudio
+- **Vault** — explorar notas, brain graph interativo, busca
+- **Agentes** — gerenciar agentes e sub-agentes
+- **Uso** — gráficos de custo e uso por modelo/período
+- **WhatsApp** — QR code, contatos, configurações
+- **Configurações** — status dos providers, modelos disponíveis
+
+Tema dark cyber-minimalista (#111827, #A78BFA, #4ADE80). Responsivo para mobile.
+
+---
+
+## Proxies e Deploy
+
+O frontend faz proxy automático de `/api/*` para o backend:
+
+```typescript
+// frontend/next.config.ts
+async rewrites() {
+  return [{ source: "/api/:path*", destination: "http://5.78.198.180:8000/api/:path*" }];
+}
+```
+
+Para produção, altere o IP no `next.config.ts` e no `frontend/.env.production`.
+
+---
+
+## Documentação
 
 - [`docs/INSTALACAO.md`](docs/INSTALACAO.md) — Guia completo de instalação
+- [`docs/API.md`](docs/API.md) — Referência completa da API REST
 - [`docs/MEMORIA-MULTI-AGENTE.md`](docs/MEMORIA-MULTI-AGENTE.md) — Arquitetura de memória
+- `http://localhost:8000/docs` — Swagger UI interativo
 
 ---
 
-## 🗺️ Roadmap
+## Licença
 
-- [x] **v0.1** — CLI + roteador multi-LLM + memória hierárquica
-- [x] **v0.2** — Dashboard web + WhatsApp (este release)
-- [ ] **v0.3** — Integrações: Telegram, Email, Google Calendar
-- [ ] **v0.4** — Embeddings locais + busca semântica real
-- [ ] **v0.5** — Auto-promoção de padrões + skills auto-geradas
+Projeto pessoal. Uso livre para fins pessoais.
 
 ---
 
-## 🧠 Inspirações
+## Autor
 
-ClawVault combina ideias de:
-- **OpenClaw** — skills como arquivos markdown
-- **Hermes Agent** — learning loop, memória progressiva, sub-agentes isolados
-- **Obsidian** — vault + wiki-links + grafo de conexões
-- **Karpathy's LLM Wiki** — arquitetura raw/wiki/output
-
----
-
-## ⚖️ Licença
-
-Projeto pessoal, uso livre para fins pessoais. Para uso comercial, entre em contato.
-
----
-
-## ❤️ Autor
-
-Construído por **Eliandro** com auxílio de Claude (Anthropic).
+Construído por **Eliandro Tjader** com auxílio de IA.

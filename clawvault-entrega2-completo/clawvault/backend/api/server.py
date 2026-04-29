@@ -215,7 +215,11 @@ class TranscribeRequest(BaseModel):
 
 @app.get("/")
 def root():
-    """Health check."""
+    """Health check endpoint.
+
+    Returns:
+        dict: Service name, version, and current timestamp.
+    """
     return {
         "status": "ok",
         "service": "ClawVault",
@@ -226,7 +230,12 @@ def root():
 
 @app.get("/api/status")
 def get_status():
-    """Status geral do sistema."""
+    """Return system status including providers, budget, and stats.
+
+    Returns:
+        dict: version, providers (key availability), budget (spent/limit/percent),
+              stats (conversation/message/agent counts).
+    """
     spend = get_monthly_spend()
 
     providers = {}
@@ -257,7 +266,17 @@ def get_status():
 
 @app.post("/api/transcribe")
 async def transcribe_audio_endpoint(req: TranscribeRequest):
-    """Transcribe audio using Deepgram nova-3 (PT-BR)."""
+    """Transcribe base64-encoded audio using Deepgram nova-3 (PT-BR).
+
+    Args:
+        req: TranscribeRequest with audio_data (base64) and mime_type.
+
+    Returns:
+        dict: {text: str, confidence: float, duration: float}
+
+    Raises:
+        HTTPException 500: If transcription fails or DEEPGRAM_API_KEY is missing.
+    """
     try:
         import base64 as b64
         audio_bytes = b64.b64decode(req.audio_data)
@@ -270,7 +289,14 @@ async def transcribe_audio_endpoint(req: TranscribeRequest):
 
 @app.get("/api/models")
 def list_models(available_only: bool = False):
-    """Lista catálogo de modelos."""
+    """List all models in the catalog, optionally filtering by availability.
+
+    Args:
+        available_only: If True, only return models with a configured API key.
+
+    Returns:
+        dict: {models: list of model dicts, total: int}
+    """
     result = []
     for model in MODELS_CATALOG.values():
         if available_only and not API_KEYS.has_provider(model.provider):
@@ -295,7 +321,28 @@ def list_models(available_only: bool = False):
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
-    """Envia uma mensagem e recebe resposta (sync)."""
+    """Main chat endpoint — send a message and receive a synchronous response.
+
+    Flow:
+        1. Check for slash commands → execute locally (no LLM)
+        2. Check semantic cache → return cached response if similar query found
+        3. Create or reuse conversation
+        4. Compress prompt if enabled
+        5. Gather context (messages, agent memory, vault)
+        6. Classify complexity (TRIVIAL→CRITICAL)
+        7. Build adaptive system prompt
+        8. Agentic tool loop (max 5 iterations with function calling)
+        9. Save messages + trigger background fact extraction
+
+    Args:
+        req: ChatRequest with message, conversation_id, agent_name, etc.
+
+    Returns:
+        ChatResponse: content, model_id, provider, tokens, cost, complexity.
+
+    Raises:
+        HTTPException 500: If all LLM models fail.
+    """
     # === SLASH COMMAND INTERCEPTION (P7) ===
     if is_slash_command(req.message):
         result = execute_slash_command(req.message)
@@ -819,13 +866,25 @@ def _sse_event(event_name: str, data: dict) -> str:
 
 @app.get("/api/commands")
 def list_available_commands():
-    """Lista todos os slash commands disponíveis (para autocomplete na UI)."""
+    """List all available slash commands for UI autocomplete.
+
+    Returns:
+        dict: {commands: list of command descriptors}
+    """
     return {"commands": list_commands()}
 
 
 @app.websocket("/ws/chat")
 async def websocket_chat(websocket: WebSocket):
-    """WebSocket para chat em tempo real."""
+    """WebSocket endpoint for real-time bidirectional chat.
+
+    Receives JSON with message, conversation_id, agent_name.
+    Sends back events: conversation_created, compression, classification,
+    response, error.
+
+    Args:
+        websocket: WebSocket connection.
+    """
     await websocket.accept()
     try:
         while True:
@@ -938,7 +997,15 @@ Acumule conhecimento. Nunca dig que não tem memória. Responda em português br
 
 @app.get("/api/conversations")
 def list_conversations(limit: int = 50, archived: bool = False):
-    """Lista conversas."""
+    """List conversations ordered by most recently updated.
+
+    Args:
+        limit: Max conversations to return (default 50).
+        archived: Include archived conversations (default False).
+
+    Returns:
+        dict: {conversations: list of conversation records}
+    """
     rows = db.fetch_all(
         """
         SELECT * FROM conversations WHERE archived = ?
@@ -951,7 +1018,14 @@ def list_conversations(limit: int = 50, archived: bool = False):
 
 @app.get("/api/conversations/{conv_id}/messages")
 def get_messages(conv_id: int):
-    """Pega todas as mensagens de uma conversa."""
+    """Get all messages for a conversation, ordered chronologically.
+
+    Args:
+        conv_id: Conversation ID.
+
+    Returns:
+        dict: {messages: list of message records}
+    """
     rows = db.fetch_all(
         "SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at",
         (conv_id,),
@@ -961,7 +1035,14 @@ def get_messages(conv_id: int):
 
 @app.delete("/api/conversations/{conv_id}")
 def delete_conversation(conv_id: int):
-    """Arquiva uma conversa."""
+    """Archive a conversation (soft delete).
+
+    Args:
+        conv_id: Conversation ID.
+
+    Returns:
+        dict: {status: 'archived'}
+    """
     db.execute("UPDATE conversations SET archived = 1 WHERE id = ?", (conv_id,))
     return {"status": "archived"}
 
@@ -972,13 +1053,27 @@ def delete_conversation(conv_id: int):
 
 @app.get("/api/agents")
 def list_agents():
-    """Lista todos os agentes."""
+    """List all registered agents.
+
+    Returns:
+        dict: {agents: list of agent descriptors}
+    """
     return {"agents": AgentRegistry.list_all()}
 
 
 @app.get("/api/agents/{name}")
 def get_agent(name: str):
-    """Detalhes de um agente."""
+    """Get agent details including memory stats and sub-agents.
+
+    Args:
+        name: Agent name.
+
+    Returns:
+        dict: {agent: descriptor, memory_stats: dict, subagents: list}
+
+    Raises:
+        HTTPException 404: Agent not found.
+    """
     ag = AgentRegistry.get(name)
     if not ag:
         raise HTTPException(404, f"Agente '{name}' não encontrado")
@@ -993,7 +1088,17 @@ def get_agent(name: str):
 
 @app.post("/api/agents")
 def create_agent(req: CreateAgentRequest):
-    """Cria um novo sub-agente."""
+    """Create a new sub-agent under an existing parent.
+
+    Args:
+        req: CreateAgentRequest with name, role, parent_agent, etc.
+
+    Returns:
+        dict: {status: 'created', name: str}
+
+    Raises:
+        HTTPException 400: Agent already exists or parent not found.
+    """
     if AgentRegistry.get(req.name):
         raise HTTPException(400, f"Agente '{req.name}' já existe")
 
@@ -1017,7 +1122,17 @@ def create_agent(req: CreateAgentRequest):
 
 @app.get("/api/agents/{name}/memory")
 def get_agent_memory_data(name: str):
-    """Retorna toda a memória de um agente."""
+    """Get all memory entries for an agent, grouped by level (core/learned/episodic).
+
+    Args:
+        name: Agent name.
+
+    Returns:
+        dict: {core: [...], learned: [...], episodic: [...]}
+
+    Raises:
+        HTTPException 404: Agent not found.
+    """
     if not AgentRegistry.get(name):
         raise HTTPException(404, f"Agente '{name}' não encontrado")
 
@@ -1042,13 +1157,25 @@ def get_agent_memory_data(name: str):
 
 @app.get("/api/shared-memory/channels")
 def list_channels():
-    """Lista todos os canais de memória compartilhada."""
+    """List all shared memory channels (namespaces).
+
+    Returns:
+        dict: {channels: list[str]}
+    """
     return {"channels": shared_bus.list_namespaces()}
 
 
 @app.get("/api/shared-memory/{namespace}")
 def get_channel_memories(namespace: str, agent: Optional[str] = None):
-    """Pega memórias de um canal específico."""
+    """Get memory entries for a specific channel.
+
+    Args:
+        namespace: Channel name.
+        agent: Optional agent filter.
+
+    Returns:
+        dict: {namespace: str, entries: list}
+    """
     rows = db.fetch_all(
         "SELECT * FROM shared_memory WHERE namespace = ? ORDER BY created_at DESC",
         (namespace,),
@@ -1058,7 +1185,14 @@ def get_channel_memories(namespace: str, agent: Optional[str] = None):
 
 @app.post("/api/shared-memory")
 def share_memory(req: ShareMemoryRequest):
-    """Publica memória compartilhada."""
+    """Publish a memory entry to the shared bus.
+
+    Args:
+        req: ShareMemoryRequest with namespace, key, content, etc.
+
+    Returns:
+        dict: {status: 'published'}
+    """
     shared_bus.publish(
         namespace=req.namespace,
         key=req.key,
@@ -1076,7 +1210,11 @@ def share_memory(req: ShareMemoryRequest):
 
 @app.get("/api/vault/status")
 def vault_status():
-    """Estatísticas do vault."""
+    """Vault statistics — file count and size per layer.
+
+    Returns:
+        dict: Layer name → {path, count, size_kb}.
+    """
     from backend.memory.vault import VAULT_STRUCTURE
     result = {}
     for label, folder in VAULT_STRUCTURE.items():
@@ -1093,7 +1231,14 @@ def vault_status():
 
 @app.post("/api/vault/notes")
 def save_note(req: SaveNoteRequest):
-    """Salva uma nota no vault."""
+    """Save a note to the vault in the specified layer.
+
+    Args:
+        req: SaveNoteRequest with title, content, layer, category, tags.
+
+    Returns:
+        dict: {status: 'saved', path: str} — relative path within vault.
+    """
     if req.layer == "wiki":
         filepath = vault.save_wiki(
             title=req.title, content=req.content,
@@ -1112,13 +1257,33 @@ def save_note(req: SaveNoteRequest):
 
 @app.get("/api/vault/search")
 def vault_search(q: str, layer: Optional[str] = None, limit: int = 10):
-    """Busca notas no vault."""
+    """Search vault notes — keyword mode (overridden by vault_search_enhanced).
+
+    Args:
+        q: Search query.
+        layer: Optional layer filter.
+        limit: Max results.
+
+    Returns:
+        dict: {results: list}
+    """
     return {"results": vault.search(q, layer=layer, limit=limit)}
 
 
 @app.get("/api/vault/notes/{note_path:path}")
 def read_note(note_path: str):
-    """Lê o conteúdo completo de uma nota do vault."""
+    """Read the full content of a vault note.
+
+    Args:
+        note_path: Relative path within the vault.
+
+    Returns:
+        dict: {path: str, content: str, size: int}
+
+    Raises:
+        HTTPException 404: Note not found.
+        HTTPException 403: Path traversal attempt.
+    """
     full_path = VAULT_DIR / note_path
     if not full_path.exists() or not full_path.is_file():
         raise HTTPException(status_code=404, detail=f"Nota não encontrada: {note_path}")
@@ -1133,7 +1298,18 @@ def read_note(note_path: str):
 
 @app.delete("/api/vault/notes/{note_path:path}")
 def delete_note(note_path: str):
-    """Remove uma nota do vault."""
+    """Delete a vault note permanently.
+
+    Args:
+        note_path: Relative path within the vault.
+
+    Returns:
+        dict: {status: 'deleted', path: str}
+
+    Raises:
+        HTTPException 404: Note not found.
+        HTTPException 403: Path traversal attempt.
+    """
     full_path = VAULT_DIR / note_path
     if not full_path.exists() or not full_path.is_file():
         raise HTTPException(status_code=404, detail=f"Nota não encontrada: {note_path}")
@@ -1147,15 +1323,27 @@ def delete_note(note_path: str):
 
 @app.get("/api/vault/graph")
 def vault_graph():
-    """Retorna o grafo de conhecimento (para D3/Recharts)."""
+    """Return the knowledge graph as nodes and edges for visualization.
+
+    Soft-limits to ~25 nodes. Old daily events beyond the 5 most recent
+    are consolidated to keep the graph clean.
+
+    Returns:
+        dict: {nodes: [{id, label, path, category}], edges: [{source, target}]}
+    """
     import glob as _glob
 
     # Scan all .md files and build nodes with proper metadata
+    # Brain limit: keep graph clean, max ~25 nodes
+    MAX_BRAIN_NODES = 25
     nodes = []
     node_map = {}
     seen_ids = set()
 
-    for filepath in sorted(_glob.glob(str(VAULT_DIR / "**" / "*.md"), recursive=True)):
+    # Collect all files first, then prioritize
+    all_files = sorted(_glob.glob(str(VAULT_DIR / "**" / "*.md"), recursive=True))
+
+    for filepath in all_files:
         rel = os.path.relpath(filepath, str(VAULT_DIR))
         stem = Path(filepath).stem
 
@@ -1173,12 +1361,9 @@ def vault_graph():
         if label.startswith("openclaw-"):
             label = label.replace("openclaw-", "")
         elif label.startswith("2026-"):
-            # Extract meaningful part after the date prefix
             match = __import__("re").match(r"\d{4}-\d{2}-\d{2}[_-](.+)", label)
             if match:
                 label = match.group(1).replace("-", " ")[:40]
-        elif label.startswith("openclaw-"):
-            label = label.replace("openclaw-", "")
 
         node_id = stem
         if node_id not in seen_ids:
@@ -1192,6 +1377,19 @@ def vault_graph():
             node_map[node_id] = node
             seen_ids.add(node_id)
 
+    # Soft contraction: if too many nodes, consolidate old daily events into one
+    if len(nodes) > MAX_BRAIN_NODES:
+        import re as _re
+        event_nodes = [n for n in nodes if n["category"] == "eventos"
+                       and _re.match(r".+2026-04-(\d+)", n["id"])]
+        # Keep only the 5 most recent daily events
+        if len(event_nodes) > 5:
+            event_nodes.sort(key=lambda n: n["id"], reverse=True)
+            to_remove = {n["id"] for n in event_nodes[5:]}
+            nodes = [n for n in nodes if n["id"] not in to_remove]
+            # Rebuild node_map
+            node_map = {n["id"]: n for n in nodes}
+
     # Build edges from vault graph (entity links)
     graph = vault.build_graph()
     edges = []
@@ -1204,7 +1402,11 @@ def vault_graph():
 
 @app.get("/api/vault/entities")
 def vault_entities():
-    """Lista todas as entidades do vault."""
+    """List all named entities detected in the vault.
+
+    Returns:
+        list[str]: Entity names.
+    """
     return vault.list_entities()
 
 
@@ -1214,37 +1416,80 @@ def vault_entities():
 
 @app.get("/api/observability/overview")
 def observability_overview(days: int = 7):
-    """Visão geral das métricas dos últimos N dias."""
+    """Overview of metrics for the last N days.
+
+    Args:
+        days: Number of days to include.
+
+    Returns:
+        dict: Aggregated observability metrics.
+    """
     return metrics.overview(days=days)
 
 
 @app.get("/api/observability/by-model")
 def observability_by_model(days: int = 7):
-    """Quebra de uso/custo por modelo."""
+    """Breakdown of usage and cost by model.
+
+    Args:
+        days: Number of days to include.
+
+    Returns:
+        dict: {models: list}
+    """
     return {"models": metrics.by_model(days=days)}
 
 
 @app.get("/api/observability/by-agent")
 def observability_by_agent(days: int = 7):
-    """Quebra de uso/custo por agente."""
+    """Breakdown of usage and cost by agent.
+
+    Args:
+        days: Number of days to include.
+
+    Returns:
+        dict: {agents: list}
+    """
     return {"agents": metrics.by_agent(days=days)}
 
 
 @app.get("/api/observability/cache")
 def observability_cache(days: int = 7):
-    """Métricas detalhadas de prompt caching."""
+    """Detailed prompt caching metrics.
+
+    Args:
+        days: Number of days to include.
+
+    Returns:
+        dict: Cache hit/miss rates and savings.
+    """
     return metrics.cache_metrics(days=days)
 
 
 @app.get("/api/observability/timeline")
 def observability_timeline(days: int = 30, granularity: str = "day"):
-    """Série temporal de uso. granularity = 'day' ou 'hour'."""
+    """Usage time series.
+
+    Args:
+        days: Number of days to include.
+        granularity: 'day' or 'hour'.
+
+    Returns:
+        dict: {timeline: list}
+    """
     return {"timeline": metrics.timeline(days=days, granularity=granularity)}
 
 
 @app.get("/api/observability/top-conversations")
 def observability_top_conversations(limit: int = 10):
-    """Conversas mais caras do último mês."""
+    """Most expensive conversations in the last month.
+
+    Args:
+        limit: Max conversations to return.
+
+    Returns:
+        dict: {conversations: list}
+    """
     return {"conversations": metrics.top_conversations(limit=limit)}
 
 
@@ -1254,7 +1499,11 @@ def observability_top_conversations(limit: int = 10):
 
 @app.get("/api/usage/budget")
 def get_budget():
-    """Gastos do mês atual."""
+    """Current month spending.
+
+    Returns:
+        dict: {spent_usd, limit_usd, ...}
+    """
     spend = get_monthly_spend()
     return {
         **spend,
@@ -1264,7 +1513,14 @@ def get_budget():
 
 @app.get("/api/usage/by-model")
 def usage_by_model(days: int = 30):
-    """Uso agrupado por modelo nos últimos N dias."""
+    """Usage grouped by model for the last N days.
+
+    Args:
+        days: Number of days to include.
+
+    Returns:
+        dict: {usage: list, days: int}
+    """
     rows = db.fetch_all(
         """
         SELECT model_id, provider,
@@ -1284,7 +1540,14 @@ def usage_by_model(days: int = 30):
 
 @app.get("/api/usage/daily")
 def usage_daily(days: int = 30):
-    """Uso diário (série temporal para gráfico)."""
+    """Daily usage time series for charting.
+
+    Args:
+        days: Number of days to include.
+
+    Returns:
+        dict: {daily: list, days: int}
+    """
     rows = db.fetch_all(
         """
         SELECT DATE(timestamp) as day,
@@ -1307,7 +1570,15 @@ def usage_daily(days: int = 30):
 
 @app.get("/api/facts")
 def list_facts(entity: Optional[str] = None, limit: int = 50):
-    """Lista fatos extraídos."""
+    """List extracted facts, optionally filtered by entity.
+
+    Args:
+        entity: Optional entity name filter.
+        limit: Max results.
+
+    Returns:
+        dict: {facts: list}
+    """
     if not _P1_ENABLED:
         raise HTTPException(501, "P1 (facts) não disponível")
     if entity:
@@ -1325,7 +1596,11 @@ def list_facts(entity: Optional[str] = None, limit: int = 50):
 
 @app.get("/api/facts/stats")
 def get_facts_stats():
-    """Estatísticas de fatos."""
+    """Statistics about extracted facts.
+
+    Returns:
+        dict: Counts by type, active/deprecated totals.
+    """
     if not _P1_ENABLED:
         raise HTTPException(501, "P1 (facts) não disponível")
     return facts_stats()
@@ -1333,7 +1608,14 @@ def get_facts_stats():
 
 @app.post("/api/facts/extract/{conv_id}")
 def trigger_fact_extraction(conv_id: int):
-    """Dispara extração de fatos para uma conversa."""
+    """Manually trigger fact extraction for a conversation.
+
+    Args:
+        conv_id: Conversation ID.
+
+    Returns:
+        dict: {status: 'enqueued', conversation_id: int}
+    """
     if not _P1_ENABLED:
         raise HTTPException(501, "P1 (facts) não disponível")
     bg_worker.enqueue_fact_extraction(conv_id)
@@ -1342,7 +1624,17 @@ def trigger_fact_extraction(conv_id: int):
 
 @app.delete("/api/facts/{fact_id}")
 def delete_fact(fact_id: int):
-    """Deprecate um fato."""
+    """Deprecate (soft-delete) a fact.
+
+    Args:
+        fact_id: Fact ID.
+
+    Returns:
+        dict: {status: 'deprecated', fact_id: int}
+
+    Raises:
+        HTTPException 404: Fact not found.
+    """
     if not _P1_ENABLED:
         raise HTTPException(501, "P1 (facts) não disponível")
     ok = deprecate_fact(fact_id)
@@ -1353,7 +1645,11 @@ def delete_fact(fact_id: int):
 
 @app.get("/api/worker/stats")
 def get_worker_stats():
-    """Estatísticas do background worker."""
+    """Background worker queue statistics.
+
+    Returns:
+        dict: {queue_size, processed, errors}
+    """
     if not _P1_ENABLED:
         raise HTTPException(501, "Worker não disponível")
     return bg_worker.stats()
@@ -1365,7 +1661,11 @@ def get_worker_stats():
 
 @app.post("/api/embeddings/reindex")
 def trigger_reindex():
-    """Dispara reindexação completa do vault."""
+    """Trigger full reindex of vault for semantic search.
+
+    Returns:
+        dict: {indexed: int, errors: int, duration_seconds: float}
+    """
     if not _P2_ENABLED:
         raise HTTPException(501, "P2 (embeddings) não disponível")
     result = reindex_all()
@@ -1374,7 +1674,11 @@ def trigger_reindex():
 
 @app.get("/api/embeddings/stats")
 def get_embeddings_stats():
-    """Estatísticas de embeddings."""
+    """Embedding index statistics.
+
+    Returns:
+        dict: {total_vectors, dimensions, index_size_mb, last_indexed}
+    """
     if not _P2_ENABLED:
         raise HTTPException(501, "P2 (embeddings) não disponível")
     return index_stats()
@@ -1382,7 +1686,11 @@ def get_embeddings_stats():
 
 @app.get("/api/embeddings/health")
 def get_embeddings_health():
-    """Health check dos embeddings."""
+    """Health check for the embedding service.
+
+    Returns:
+        dict: {status, provider, model}
+    """
     if not _P2_ENABLED:
         raise HTTPException(501, "P2 (embeddings) não disponível")
     return embeddings_health()
@@ -1390,7 +1698,14 @@ def get_embeddings_health():
 
 @app.delete("/api/cache/clear")
 def clear_semantic_cache(older_than_days: Optional[int] = None):
-    """Limpa cache semântico."""
+    """Clear semantic response cache.
+
+    Args:
+        older_than_days: Only clear entries older than N days (None = all).
+
+    Returns:
+        dict: {removed: int}
+    """
     if not _P2_ENABLED:
         raise HTTPException(501, "P2 (cache) não disponível")
     from backend.search import cache_clear
@@ -1403,7 +1718,20 @@ _original_vault_search = vault_search
 
 @app.get("/api/vault/search")  # type: ignore[misc]
 def vault_search_enhanced(q: str, layer: Optional[str] = None, limit: int = 10, mode: str = "keyword"):
-    """Busca notas no vault — suporta keyword, semantic e hybrid."""
+    """Search vault notes with configurable search mode.
+
+    Args:
+        q: Search query string.
+        layer: Optional layer filter.
+        limit: Max results to return.
+        mode: Search mode — 'keyword' (default), 'semantic', or 'hybrid'.
+
+    Returns:
+        dict: {results: list, mode: str} (mode included for semantic/hybrid).
+
+    Raises:
+        HTTPException 400: Invalid mode value.
+    """
     if mode == "keyword" or not _P2_ENABLED:
         return {"results": vault.search(q, layer=layer, limit=limit)}
     elif mode == "semantic":

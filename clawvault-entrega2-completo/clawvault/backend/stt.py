@@ -15,11 +15,14 @@ DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY", "")
 
 
 async def transcribe_audio(audio_data: bytes, mime_type: str = "audio/webm") -> dict:
-    """
-    Transcribe audio using Deepgram nova-3 (PT-BR optimized).
-    
+    """Transcribe audio bytes using Deepgram nova-3 (PT-BR optimized).
+
+    Args:
+        audio_data: Raw audio bytes to transcribe.
+        mime_type: MIME type of the audio (default: audio/webm).
+
     Returns:
-        {"text": str, "confidence": float, "duration": float}
+        dict: {text: str, confidence: float, duration: float, error: str (on failure)}
     """
     if not DEEPGRAM_API_KEY or DEEPGRAM_API_KEY.startswith("placeholder"):
         return {

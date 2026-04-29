@@ -84,7 +84,14 @@ def extract_sections(markdown: str) -> dict[str, str]:
 
 
 def parse_daily_log(content: str) -> dict:
-    """Parse a daily log into structured data."""
+    """Parse a daily log file into structured sections.
+
+    Args:
+        content: Daily log markdown content.
+
+    Returns:
+        dict: {decisoes, feito, licoes, pendencias} — section strings.
+    """
     sections = extract_sections(content)
     return {
         "decisoes": sections.get("Decisões", ""),
